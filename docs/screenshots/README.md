@@ -12,3 +12,4 @@
 | `hero.webp` | README 顶部宣传卡（源码 `hero.html`，1200×420 @2x，DSH 品牌色 `rgb(65,118,230)`） |
 | `at-flow.webp` | 跨会话协作四步流程图（源码 `at-flow.html`） |
 | `at-picker.webp` | 输入框输入 `@` 弹出的会话选择器 |
+| `mascot.webp` | 吉祥物「大肥鱼」（DSH 玩偶形象，透明底；hero 卡的中间人物） |
