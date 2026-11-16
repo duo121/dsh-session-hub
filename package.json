@@ -1,0 +1,50 @@
+{
+  "name": "dsh-session-hub",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "DSH session hub: one session tool — browse lists/digests/full dialogs, create/rename/message/interrupt/archive/pin sessions; collaborator header indicator with auto receipt",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml",
+      "listedByDefault": true
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ],
+      "platform": "web"
+    },
+    "manifestVersion": 1
+  },
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "deepseek",
+    "session",
+    "collaboration",
+    "plugin"
+  ],
+  "engines": {
+    "node": ">=22",
+    "dsh": ">=0.2.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*"
+  }
+}

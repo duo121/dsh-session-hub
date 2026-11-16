@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Session Hub",
+    "description": "Read session lists and turn digests, and create, rename, message, interrupt, archive, unarchive, or pin other sessions by id.",
+    "detail": "docs/DETAIL.md"
+  }
+}
