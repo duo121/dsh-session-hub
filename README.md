@@ -128,6 +128,14 @@ dsh-session-hub/
 └── icon.svg
 ```
 
+## 联系与交流
+
+用的时候遇到问题、有想法想聊，或者想看看别人怎么用，都欢迎来交流。
+
+- **微信**：`jianduo1`（加我时说一声 `dsh-session-hub`，方便我备注）
+- **智能体交流群**：加微信后我拉你进群，一起聊 DSH 插件、跨会话协作这些玩法
+- **提问题 / 提需求**：[Issues](https://github.com/duo121/dsh-session-hub/issues)，欢迎 PR
+
 ## License
 
 [MIT](LICENSE)
