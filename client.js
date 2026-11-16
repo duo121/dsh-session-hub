@@ -400,15 +400,16 @@ window.__ModuleLoader__.load({
 							queueMicrotask(() => triggerRef.current?.focus());
 						},
 						children: [
-							react_jsx_runtime.jsx(primitives.IconUsersOutlineRegular, {
-								size: 14,
-								className: 'shub_collabIcon',
-							}),
-							// NOTE: 对齐 ui-subagent :707-711：运行中显示 StateDot ongoing
-							runningCount > 0 &&
-								react_jsx_runtime.jsx('span', {
+							// NOTE: 对齐 ui-subagent / ui-jobs：头部前置位是「活动指示器」，
+							// 运行中显示转圈、空闲显示协作图标，二者互斥不并列。
+							runningCount > 0
+								? react_jsx_runtime.jsx('span', {
 									className: 'shub_collabActivity',
 									children: react_jsx_runtime.jsx(primitives.StateDot, { state: 'ongoing' }),
+								})
+								: react_jsx_runtime.jsx(primitives.IconUsersOutlineRegular, {
+									size: 14,
+									className: 'shub_collabIcon',
 								}),
 							react_jsx_runtime.jsx('span', { children: countText }),
 							react_jsx_runtime.jsx(primitives.IconChevronDownOutlineRegular, {
