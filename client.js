@@ -8,7 +8,7 @@ window.__ModuleLoader__.load({
 		let react = require('react');
 		let react_dom = require('react-dom');
 		let react_jsx_runtime = require('react/jsx-runtime');
-		// AGNX-PATCH(2026-11-16) 协作专家：复用 DSH primitives 的 IconUsersOutlineRegular 与 StateDot
+		// NOTE: 协作专家：复用 DSH primitives 的 IconUsersOutlineRegular 与 StateDot
 		let primitives = require('@deepseek-ai/dsh-client-ui-primitives');
 
 		/** 头部插槽名：与 ui-subagent / ui-jobs 注入的是同一个。 */
@@ -41,7 +41,7 @@ window.__ModuleLoader__.load({
 			'activity.inactive': '空闲',
 			'row.archived': '已归档',
 			'row.archivedHint': '该会话已归档，先在侧栏的归档中取消归档再打开。',
-			// AGNX-PATCH(2026-11-16) UI 增强：最近往来相对时间与方向
+			// NOTE: UI 增强：最近往来相对时间与方向
 			'row.lastExchange': '{value}前',
 			'row.lastExchange.now': '刚刚',
 			'row.lastExchange.minutes': '{n} 分钟',
@@ -62,7 +62,7 @@ window.__ModuleLoader__.load({
 			'activity.inactive': 'Idle',
 			'row.archived': 'Archived',
 			'row.archivedHint': 'This session is archived. Unarchive it from the sidebar first.',
-			// AGNX-PATCH(2026-11-16) UI 增强：最近往来相对时间与方向
+			// NOTE: UI 增强：最近往来相对时间与方向
 			'row.lastExchange': '{value} ago',
 			'row.lastExchange.now': 'just now',
 			'row.lastExchange.minutes': '{n} min',
@@ -90,6 +90,7 @@ window.__ModuleLoader__.load({
 			'@media (hover:hover){.shub_row:hover{background:var(--dsw-alias-interactive-bg-hover)}}' +
 			'.shub_row:focus-visible{background:var(--dsw-alias-interactive-bg-hover)}' +
 			'.shub_rowActivity{flex:none;justify-content:center;align-items:center;width:14px;height:17px;display:inline-flex}' +
+			'.shub_collabActivity{flex:none;align-items:center;display:inline-flex}' +
 			'.shub_rowContent{flex-direction:column;flex:1;min-width:0;display:flex}' +
 			'.shub_rowLabel,.shub_rowSecondary{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}' +
 			'.shub_rowSecondary{color:var(--dsw-alias-label-tertiary);font-size:10px;line-height:15px}' +
@@ -109,7 +110,7 @@ window.__ModuleLoader__.load({
 		 * @param trigger 触发器元素。
 		 * @returns 定位样式。
 		 */
-		// AGNX-PATCH(2026-11-16) 弹框定位：与 ui-subagent catalogMenuPosition 同一算法
+		// NOTE: 弹框定位：与 ui-subagent catalogMenuPosition 同一算法
 		function menuPositionOf(trigger) {
 			const rect = trigger.getBoundingClientRect();
 			const width = Math.min(MENU_WIDTH, window.innerWidth - MENU_VIEWPORT_MARGIN * 2);
@@ -129,7 +130,7 @@ window.__ModuleLoader__.load({
 		 * 离开 120ms 收起、点击固定、Esc 关闭、portal 到 body、窗口
 		 * 缩放/滚动时重新定位），列表内容换成 send 过的目标会话。
 		 */
-		// AGNX-PATCH(2026-11-16) 协作专家头部指示：计数 + 悬停弹框（复刻子智能体 CatalogDropdown 交互）
+		// NOTE: 协作专家头部指示：计数 + 悬停弹框（复刻子智能体 CatalogDropdown 交互）
 		function CollaboratorsIndicator(props) {
 			const sessionId = props?.sessionId;
 			const useSessions = props?.useSessions;
@@ -168,18 +169,20 @@ window.__ModuleLoader__.load({
 								id,
 								title: summary?.title,
 								running: summary?.running === true,
-								// AGNX-PATCH(2026-11-16) UI 增强：最近往来时间与方向随投影一起取
+								// NOTE: UI 增强：最近往来时间与方向随投影一起取
 								at: typeof entry === 'object' && typeof entry?.at === 'number' ? entry.at : undefined,
 								dir: typeof entry === 'object' && entry?.dir === 'in' ? 'in' : 'out',
 							};
 						});
 					})
 				: undefined;
+			// NOTE: 对齐 ui-subagent：任一协作专家运行中时触发器显示转圈
+			const runningCount = Array.isArray(rows) ? rows.filter((row) => row.running === true).length : 0;
 
 			const [open, setOpen] = react.useState(false);
-			// AGNX-PATCH(2026-11-16) UI 增强：相对时间需要随时间推进重算，用一个低频心跳驱动
+			// NOTE: UI 增强：相对时间需要随时间推进重算，用一个低频心跳驱动
 			const [now, setNow] = react.useState(() => Date.now());
-				// AGNX-PATCH(2026-11-16) 点击已归档行时的提示（DSH 不允许 retain 归档会话，保持既有行为并提示）
+				// NOTE: 点击已归档行时的提示（DSH 不允许 retain 归档会话，保持既有行为并提示）
 		/** 点击已归档行时的提示（DSH 不允许 retain 归档会话）。 */
 			const [archivedNotice, setArchivedNotice] = react.useState(false);
 			const [menuPosition, setMenuPosition] = react.useState(undefined);
@@ -272,7 +275,7 @@ window.__ModuleLoader__.load({
 				[],
 			);
 
-			// AGNX-PATCH(2026-11-16) UI 增强：菜单打开时每 15 秒重算一次相对时间
+			// NOTE: UI 增强：菜单打开时每 15 秒重算一次相对时间
 			react.useEffect(() => {
 				if (!open) return;
 				const timer = setInterval(() => setNow(Date.now()), 15000);
@@ -281,7 +284,7 @@ window.__ModuleLoader__.load({
 
 			if (!Array.isArray(ids) || ids.length === 0) return null;
 
-			// AGNX-PATCH(2026-11-16) UI 增强：兜底分支补上新 key，缺 t 时也不会显示错文案
+			// NOTE: UI 增强：兜底分支补上新 key，缺 t 时也不会显示错文案
 			const FALLBACK = {
 				'collaborators.one': `${ids.length} 个协作专家`,
 				'collaborators.other': `${ids.length} 个协作专家`,
@@ -312,14 +315,14 @@ window.__ModuleLoader__.load({
 				count: ids.length,
 			});
 
-			// AGNX-PATCH(2026-11-16) UI 增强：最近往来相对时间，复用 primitives.relativeTime 的分桶
+			// NOTE: UI 增强：最近往来相对时间，复用 primitives.relativeTime 的分桶
 			const lastExchangeLabel = (at) => {
 				const { unit, n } = primitives.relativeTime(at, now);
 				if (unit === 'now') return tr('row.lastExchange.now');
 				return tr('row.lastExchange', { value: tr(`row.lastExchange.${unit}`, { n }) });
 			};
 
-			// AGNX-PATCH(2026-11-16) 归档会话保留在列表里并标「已归档」；id 前缀归一化后再比
+			// NOTE: 归档会话保留在列表里并标「已归档」；id 前缀归一化后再比
 			// 归档集合里的 id 带 `session-` 前缀，而列表行是裸 uuid，统一去前缀再比。
 			const archived = new Set(
 				(Array.isArray(archivedIds) ? archivedIds : []).map((id) =>
@@ -378,6 +381,18 @@ window.__ModuleLoader__.load({
 							if (!open) changeOpen(true);
 						},
 						onKeyDown: (event) => {
+							// NOTE: 对齐 ui-subagent：ArrowDown 打开并聚焦首行
+							if (event.key === 'ArrowDown') {
+								event.preventDefault();
+								cancelHoverOpen();
+								cancelHoverClose();
+								if (!open) changeOpen(true);
+								queueMicrotask(() => {
+									const first = menuRef.current?.querySelector('[data-session-hub-row]');
+									first?.focus();
+								});
+								return;
+							}
 							if (event.key !== 'Escape') return;
 							if (!open) return;
 							event.preventDefault();
@@ -389,6 +404,12 @@ window.__ModuleLoader__.load({
 								size: 14,
 								className: 'shub_collabIcon',
 							}),
+							// NOTE: 对齐 ui-subagent :707-711：运行中显示 StateDot ongoing
+							runningCount > 0 &&
+								react_jsx_runtime.jsx('span', {
+									className: 'shub_collabActivity',
+									children: react_jsx_runtime.jsx(primitives.StateDot, { state: 'ongoing' }),
+								}),
 							react_jsx_runtime.jsx('span', { children: countText }),
 							react_jsx_runtime.jsx(primitives.IconChevronDownOutlineRegular, {
 								className: open ? 'shub_triggerOpen' : undefined,
@@ -443,12 +464,12 @@ window.__ModuleLoader__.load({
 																		children: [
 																			react_jsx_runtime.jsx('span', {
 																				className: 'shub_rowLabel',
-																				// AGNX-PATCH(2026-11-16) UI 增强：方向字符前缀（→ 我发出的 / ← 我收到的）
+																				// NOTE: UI 增强：方向字符前缀（→ 我发出的 / ← 我收到的）
 																				children: `${row.dir === 'in' ? '\u2190 ' : '\u2192 '}${row.title ?? tr('row.untitled')}`,
 																			}),
 																			react_jsx_runtime.jsx('span', {
 																				className: 'shub_rowSecondary',
-																				// AGNX-PATCH(2026-11-16) UI 增强：<相对时间> · <方向> · <状态> ·（已归档时）已归档
+																				// NOTE: UI 增强：<相对时间> · <方向> · <状态> ·（已归档时）已归档
 																				children: [
 																					row.at === undefined ? '' : `${lastExchangeLabel(row.at)} · `,
 																					`${tr(row.dir === 'in' ? 'dir.in' : 'dir.out')} · `,
@@ -488,7 +509,7 @@ window.__ModuleLoader__.load({
 		 *
 		 * @param ctx Client Cordis context。
 		 */
-		// AGNX-PATCH(2026-11-16) 注册协作专家头部插槽与 locale
+		// NOTE: 注册协作专家头部插槽与 locale
 		function apply(ctx) {
 			ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'session-hub: dictionaries');
 			ctx.slots.inject(SLOT, () =>

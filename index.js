@@ -616,7 +616,7 @@ function explainError(error) {
  * @param archived 归档集合。
  * @returns 结果文本。
  */
-// AGNX-PATCH(2026-11-16) send 增加 receipt 选项：回执标记 + 来源前缀，目标会话 turn/end 时自动回传
+// NOTE: send 增加 receipt 选项：回执标记 + 来源前缀，目标会话 turn/end 时自动回传
 async function controlSend(ctx, record, senderId, content, archived, exec, receipt) {
   const id = publicId(record.header);
 
@@ -653,9 +653,9 @@ async function controlSend(ctx, record, senderId, content, archived, exec, recei
 
   // 正文前缀：source 是 {kind:'user'}，不标注目标会误以为是用户本人。
   const title = (await readHints(ctx, record.header)).title ?? id;
-  // AGNX-PATCH(2026-11-16) receipt=true 时在待回执表登记（目标 id → 发送方 id），正文不带任何机器标记
+  // NOTE: receipt=true 时在待回执表登记（目标 id → 发送方 id），正文不带任何机器标记
   if (receipt === true && senderId !== undefined) pendingReceipts.set(normalizeId(id), normalizeId(senderId));
-  // AGNX-PATCH(2026-11-16) 标注：正文首行是发送方的 session 引用（渲染为会话标签），标题取发送方
+  // NOTE: 标注：正文首行是发送方的 session 引用（渲染为会话标签），标题取发送方
   const senderTitle = senderId === undefined ? undefined : (await readHints(ctx, { id: normalizeId(senderId) })).title;
   const body = `${formatSenderMention(senderId, senderTitle)}\n${content}`;
 
@@ -934,13 +934,13 @@ async function executeControl(ctx, args, exec) {
 
 // ───────────────────────── 协作专家回执（自动回复） ─────────────────────────
 
-// AGNX-PATCH(2026-11-16) 自动回执模块：目标会话 turn/end 时把该轮最终回复发回发送方
+// NOTE: 自动回执模块：目标会话 turn/end 时把该轮最终回复发回发送方
 /**
  * 识别方式：send 带 receipt=true 时在待回执表登记（目标 id → 发送方 id），目标 turn/end 完成时取出。
  * 循环防护：同一对会话（无序）只自动回一次（`pairs` 账本），
  * 同一轮只回一次（`delivered` 账本），普通消息不带标记则完全不触发。
  */
-// AGNX-PATCH(2026-11-16) 待回执表：目标会话 id -> 发送方会话 id（send receipt=true 时登记，目标 turn/end 完成时取出）
+// NOTE: 待回执表：目标会话 id -> 发送方会话 id（send receipt=true 时登记，目标 turn/end 完成时取出）
 const pendingReceipts = new Map();
 
 /**
@@ -965,7 +965,7 @@ function lastAssistantText(events) {
  * 监听目标会话 turn/end，自动把最终回复发回发送方。
  * @param ctx Host Context。
  */
-// AGNX-PATCH(2026-11-16) 自动回执监听（循环防护：同一对会话只回一次）
+// NOTE: 自动回执监听（循环防护：同一对会话只回一次）
 function installReceiptRelay(ctx) {
   const delivered = new Set(); // 同一轮只回一次
   const pairs = new Set(); // 同一对会话只自动回一次
@@ -997,7 +997,7 @@ function installReceiptRelay(ctx) {
     const reply = lastAssistantText(events);
     if (reply === undefined) return;
 
-    // AGNX-PATCH(2026-11-16) 归因修正：回执的「来自」应是回复方（本会话），不是原始发送方
+    // NOTE: 归因修正：回执的「来自」应是回复方（本会话），不是原始发送方
     void deliverReceipt(ctx, senderId, targetId, turn, reply).catch((reason) => {
       ctx.logger?.warn?.(`session-hub: receipt relay failed: ${reason?.message ?? reason}`);
     });
@@ -1010,8 +1010,8 @@ function installReceiptRelay(ctx) {
  * @param senderId 发送方会话 id。
  * @param reply 目标会话该轮的最终回复。
  */
-// AGNX-PATCH(2026-11-16) 回执投递：经 agents 句柄按发送方状态注入（idle→followup，running→steer，closing→inject），与子智能体 notifySettlement 同一机制
-// AGNX-PATCH(2026-11-16) 归因修正 + id 唯一化：收件人是原始发送方，来源归因是回复方
+// NOTE: 回执投递：经 agents 句柄按发送方状态注入（idle→followup，running→steer，closing→inject），与子智能体 notifySettlement 同一机制
+// NOTE: 归因修正 + id 唯一化：收件人是原始发送方，来源归因是回复方
 async function deliverReceipt(ctx, recipientId, replierId, turn, reply) {
   const agents = ctx.get('agents');
   if (agents === undefined) return;
@@ -1065,7 +1065,7 @@ function formatSenderMention(senderId, senderTitle) {
 
 // ───────────────────────── 协作专家计数投影 ─────────────────────────
 
-// AGNX-PATCH(2026-11-16) 投影键：双向协作专家（按会话 id 去重，带最近往来时间）
+// NOTE: 投影键：双向协作专家（按会话 id 去重，带最近往来时间）
 /** 投影键：本会话有过的协作会话（双向，按最近往来时间倒序）。 */
 const COLLABORATOR_KEY = 'sessionHubCollaborators';
 
@@ -1078,7 +1078,7 @@ const COLLABORATOR_KEY = 'sessionHubCollaborators';
  * @param event 一条会话事件。
  * @returns 目标会话 id，或 undefined。
  */
-// AGNX-PATCH(2026-11-16) 双向投影（我发给别人）：从 tool/call 事件取出 send 的目标会话 id
+// NOTE: 双向投影（我发给别人）：从 tool/call 事件取出 send 的目标会话 id
 function sendTargetOf(event) {
   if (event?.type !== 'tool/call') return undefined;
   const data = event.data ?? {};
@@ -1103,8 +1103,8 @@ function sendTargetOf(event) {
  * @param event 一条会话事件。
  * @returns 发送方会话 id（裸 uuid），或 undefined。
  */
-// AGNX-PATCH(2026-11-16) 双向投影（别人发给我）：回执形态，从正文前缀直接取发送方会话 id
-// AGNX-PATCH(2026-11-16) 入站识别修复：普通 send 的正文被 DSH 规范化成
+// NOTE: 双向投影（别人发给我）：回执形态，从正文前缀直接取发送方会话 id
+// NOTE: 入站识别修复：普通 send 的正文被 DSH 规范化成
 // `来自 @<标题>：`（会话引用 URI 在落库前就被剥掉，dsh-session-reference 的
 // parseSessionReferenceText 会把 `@[label](uri)` 归一成 `@label`），
 // 所以发送方 id 只能从紧随其后的 session-reference 召回消息里取。
@@ -1176,7 +1176,7 @@ function referencedSessionIds(event) {
  * @param at 事件时间（epoch ms）。
  * @returns 新列表；无变化时返回原引用（投影要求）。
  */
-// AGNX-PATCH(2026-11-16) 双向投影：同 id 去重，保留最近往来时间与方向，按时间倒序
+// NOTE: 双向投影：同 id 去重，保留最近往来时间与方向，按时间倒序
 function absorbCollaborator(entries, id, at, dir) {
   if (id === undefined) return entries;
   const index = entries.findIndex((entry) => entry.id === id);
@@ -1202,14 +1202,14 @@ function absorbCollaborator(entries, id, at, dir) {
  *
  * @param ctx Host Context。
  */
-// AGNX-PATCH(2026-11-16) 注册协作专家投影（stateVersion 2：双向 + 时间戳）
+// NOTE: 注册协作专家投影（stateVersion 2：双向 + 时间戳）
 async function registerCollaboratorProjection(ctx) {
   const projections = ctx.get('sessionProjections');
   if (projections === undefined || typeof projections.register !== 'function') return;
 
   await projections.register({
     key: COLLABORATOR_KEY,
-    // AGNX-PATCH(2026-11-16) stateVersion 3：条目新增 dir 字段（'out' | 'in'），
+    // NOTE: stateVersion 3：条目新增 dir 字段（'out' | 'in'），
     // 状态容器从数组改成 { entries, pending }（pending 用来跨事件记住
     // 「刚收到一条转发」，等紧随其后的 session-reference 召回消息带来发送方 id）。
     stateVersion: 3,
@@ -1272,7 +1272,7 @@ export function apply(ctx) {
     await registerCollaboratorProjection(ctx);
   }, 'session-hub: collaborator projection');
 
-  // AGNX-PATCH(2026-11-16) 自动回执监听
+  // NOTE: 自动回执监听
   ctx.effect(() => {
     installReceiptRelay(ctx);
     return () => {};
@@ -1359,7 +1359,7 @@ export function apply(ctx) {
             description:
               '限定工作目录；省略时用当前会话的 cwd。发送时跨目录需要显式传才放行；新建时指定新会话的工作目录。',
           },
-          // AGNX-PATCH(2026-11-16) 回执选项
+          // NOTE: 回执选项
           receipt: {
             type: 'boolean',
             description:

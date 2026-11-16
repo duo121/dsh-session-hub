@@ -2,7 +2,7 @@
   "name": "dsh-session-hub",
   "version": "1.0.0",
   "type": "module",
-  "description": "DSH session hub: one session tool — browse lists/digests/full dialogs, create/rename/message/interrupt/archive/pin sessions; collaborator header indicator with auto receipt",
+  "description": "DSH 会话中心：单工具 session——读清单/摘要/完整对话 + 新建/改名/发消息/中断/归档/置顶；协作专家头部指示与自动回执",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -19,8 +19,7 @@
   ],
   "dsh": {
     "bundle": {
-      "patch": "./cordis.patch.yml",
-      "listedByDefault": true
+      "patch": "./cordis.patch.yml"
     },
     "client": {
       "inject": [
@@ -29,8 +28,7 @@
         "@deepseek-ai/dsh-client-ui-primitives"
       ],
       "platform": "web"
-    },
-    "manifestVersion": 1
+    }
   },
   "license": "MIT",
   "keywords": [
@@ -40,11 +38,8 @@
     "collaboration",
     "plugin"
   ],
-  "engines": {
-    "node": ">=22",
-    "dsh": ">=0.2.0"
-  },
-  "peerDependencies": {
-    "@deepseek-ai/cordis": "*"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agnx/dsh-session-hub"
   }
 }
