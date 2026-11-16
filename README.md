@@ -1,5 +1,9 @@
 # dsh-session-hub
 
+<p align="center">
+  <img src="docs/screenshots/hero.webp" alt="dsh-session-hub：跨会话消息、协作专家、自动回执" width="100%">
+</p>
+
 [DSH](https://github.com/deepseek-ai) 会话中心插件：一个 `session` 工具，读会话清单、逐轮摘要、完整对话，并按 id 新建、改名、发消息、中断、归档、置顶其他会话；会话头部显示**协作专家**往来指示；消息可要求**自动回执**。
 
 无需修改 DSH 源码，安装即用。
