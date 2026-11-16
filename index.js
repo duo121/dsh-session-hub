@@ -620,6 +620,11 @@ function explainError(error) {
 async function controlSend(ctx, record, senderId, content, archived, exec, receipt) {
   const id = publicId(record.header);
 
+  // NOTE: 拒绝给自己发：自己不是自己的协作专家，也不该形成自循环。
+  if (senderId !== undefined && normalizeId(senderId) === normalizeId(record.header.id)) {
+    return `拒绝：${id} 就是本会话自己。给自己发消息不会产生任何效果，也不会被计入协作专家。请指定另一个会话。`;
+  }
+
   if (record.header.origin === 'subagent') {
     return (
       `拒绝：${id} 是子智能体会话，由 subagent 路由持有，` +
@@ -1225,18 +1230,30 @@ async function registerCollaboratorProjection(ctx) {
             typeof entry.id === 'string' &&
             typeof entry.at === 'number',
         );
-        return { entries, pending: value?.pending === true };
+        const self = typeof value?.self === 'string' && value.self.length > 0 ? value.self : undefined;
+        // NOTE: 落库状态里已有的自引用脏条目一并剔除。
+        const clean = self === undefined
+          ? entries
+          : entries.filter((entry) => normalizeId(entry.id) !== self);
+        return { entries: clean, pending: value?.pending === true, self };
       },
     },
-    init: () => ({ entries: [], pending: false }),
+    // NOTE: init 拿到本会话 header，把自身 id 记进状态，供 apply 过滤自引用。
+    init: (header) => ({ entries: [], pending: false, self: normalizeId(header?.id ?? '') }),
     apply: (state, event) => {
       const at = typeof event?.time === 'number' ? event.time : Date.now();
-      // 出站：本会话调用 session 工具发给别人。
+      // 出站：本会话调用 session 工具发给别人（发给自己不算协作，直接忽略）。
       const target = sendTargetOf(event);
-      if (target !== undefined) return { ...state, entries: absorbCollaborator(state.entries, target, at, 'out') };
+      if (target !== undefined) {
+        if (state.self !== undefined && normalizeId(target) === normalizeId(state.self)) return state;
+        return { ...state, entries: absorbCollaborator(state.entries, target, at, 'out') };
+      }
       // 入站（回执形态）：正文里直接带发送方 id。
       const sender = senderOf(event);
-      if (sender !== undefined) return { ...state, entries: absorbCollaborator(state.entries, sender, at, 'in') };
+      if (sender !== undefined) {
+        if (state.self !== undefined && normalizeId(sender) === normalizeId(state.self)) return state;
+        return { ...state, entries: absorbCollaborator(state.entries, sender, at, 'in') };
+      }
       // 入站（普通 send 形态）：正文被规范化为 `来自 @标题：`，id 要等下一条
       // session-reference 召回消息。
       if (isInboundPrefixed(event)) {
@@ -1247,7 +1264,10 @@ async function registerCollaboratorProjection(ctx) {
         const referenced = referencedSessionIds(event);
         if (referenced.length > 0) {
           let entries = state.entries;
-          for (const id of referenced) entries = absorbCollaborator(entries, id, at, 'in');
+          for (const id of referenced) {
+            if (state.self !== undefined && normalizeId(id) === normalizeId(state.self)) continue;
+            entries = absorbCollaborator(entries, id, at, 'in');
+          }
           return { entries, pending: false };
         }
         return { ...state, pending: false };

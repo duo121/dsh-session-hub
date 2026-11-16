@@ -19,6 +19,7 @@ Gives every session one `session` tool: browse session lists, turn digests, and 
 
 ## Security model
 
+- Sending to your own session is rejected: a session is never its own collaborator, and it never enters the collaborator list.
 - Subagent sessions are rejected (owned by the subagent router).
 - Archived sessions must be unarchived before messaging.
 - Sends are same-cwd by default; cross-directory sends require an explicit `cwd`.
