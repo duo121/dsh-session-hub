@@ -11,27 +11,27 @@
 会话头部与「N 个子智能体」并列显示「N 个协作专家」。空闲时是协作图标，有协作会话正在运行时换成转圈（与 DSH 子智能体／后台任务的做法一致，两者互斥不并列）。
 
 <p>
-  <img src="docs/screenshots/header-idle.png" alt="空闲态：协作图标 + 计数" width="130">
-  <img src="docs/screenshots/header-running.png" alt="运行态：转圈 + 计数" width="130">
+  <img src="docs/screenshots/header-idle.webp" alt="空闲态：协作图标 + 计数" width="130">
+  <img src="docs/screenshots/header-running.webp" alt="运行态：转圈 + 计数" width="130">
 </p>
 
 ### 悬停展开往来会话列表
 
 按最近往来时间倒序，每行显示**方向**（`→` 我发出的 / `←` 我收到的）、会话标题、相对时间与运行状态；点击直接跳转；归档会话保留在列表并标注。
 
-![协作专家列表](docs/screenshots/menu-open.png)
+![协作专家列表](docs/screenshots/menu-open.webp)
 
 ### 会话间发消息与来源标注
 
 发消息时正文首行自动带上发送方的**会话引用**（DSH 原生渲染，可点开），接收方一眼看出「不是用户本人发的」。
 
-![接收方看到的来源标注](docs/screenshots/receiver-mention.png)
+![接收方看到的来源标注](docs/screenshots/receiver-mention.webp)
 
 ### 工具调用
 
 `session` 工具的调用与结果都会出现在会话轨迹里。
 
-![session 工具调用](docs/screenshots/tool-call.png)
+![session 工具调用](docs/screenshots/tool-call.webp)
 
 ## 功能
 

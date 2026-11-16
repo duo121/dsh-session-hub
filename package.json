@@ -40,6 +40,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/agnx/dsh-session-hub"
+    "url": "git+https://github.com/duo121/dsh-session-hub.git"
+  },
+  "homepage": "https://github.com/duo121/dsh-session-hub#readme",
+  "bugs": {
+    "url": "https://github.com/duo121/dsh-session-hub/issues"
   }
 }
