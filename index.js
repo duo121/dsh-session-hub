@@ -115,6 +115,102 @@ function absorbValues(values, into) {
 }
 
 /**
+ * 把一行可搜索文本归一化：小写 + 折叠空白。
+ *
+ * 中文没有词边界，所以这里刻意不做分词，只做子串匹配的前置归一化。
+ *
+ * @param value 原始文本。
+ * @returns 归一化后的文本；非字符串返回空串。
+ */
+function normalizeForSearch(value) {
+  if (typeof value !== 'string') return '';
+  return value.toLowerCase().replace(/\s+/gu, ' ').trim();
+}
+
+/**
+ * 收集一个会话里可参与粗筛的文本，按字段分组。
+ *
+ * 数据全部来自投影缓存（`turnOutline`），它只保留每轮 prompt 的前 ~50 字与
+ * response 的前 ~120 字，因此这里是**粗筛**而非全文搜索：命中说明「大概率相关」，
+ * 未命中不代表「一定无关」。需要精确正文时再用 session_search。
+ *
+ * @param hints readHints 的返回值。
+ * @returns `{ title, prompts, responses }` 三段归一化文本。
+ */
+function collectSearchFields(hints) {
+  const prompts = [];
+  const responses = [];
+  /** 记录每个 prompt 在拼接串中的起始偏移，避免跨轮截取上下文。 */
+  const promptSpans = [];
+  let cursor = 0;
+  for (const turn of hints.outline ?? []) {
+    const prompt = normalizeForSearch(turn?.prompt);
+    if (prompt.length > 0) {
+      promptSpans.push({ start: cursor, end: cursor + prompt.length, text: prompt });
+      prompts.push(prompt);
+      cursor += prompt.length + 1;
+    }
+    const response = normalizeForSearch(turn?.response);
+    if (response.length > 0) responses.push(response);
+  }
+  return {
+    title: normalizeForSearch(hints.title),
+    prompts: prompts.join('\n'),
+    promptSpans,
+    responses: responses.join('\n'),
+  };
+}
+
+/**
+ * 按关键词粗筛一个会话，并给出命中位置与上下文。
+ *
+ * 关键词以空白分隔，全部命中才算匹配（AND 语义）；这样「插件 归档」这类
+ * 多词查询能快速收敛，而不是把任一词命中的会话全捞出来。
+ *
+ * @param hints readHints 的返回值。
+ * @param terms 已归一化的关键词数组。
+ * @returns 命中信息；无命中或任一词缺失时返回 undefined。
+ */
+function matchSession(hints, terms) {
+  if (terms.length === 0) return undefined;
+  const fields = collectSearchFields(hints);
+  const hits = [];
+  for (const term of terms) {
+    const where = [];
+    if (fields.title.includes(term)) where.push('标题');
+    const promptIndex = fields.prompts.indexOf(term);
+    if (promptIndex >= 0) where.push('首条 prompt');
+    const responseIndex = fields.responses.indexOf(term);
+    if (responseIndex >= 0) where.push('回复摘要');
+    if (where.length === 0) return undefined;
+    hits.push({ term, where });
+  }
+
+  // 取第一个关键词的上下文，让调用方不读正文也能判断相关性。
+  // 优先 prompt（最能代表会话主题），其次标题，最后退到回复摘要。
+  // 只在单个字段内截取，绝不跨轮拼接。
+  const context = (() => {
+    const first = terms[0];
+    const span = fields.promptSpans.find((item) => item.text.includes(first));
+    if (span !== undefined) {
+      const at = span.text.indexOf(first);
+      const start = Math.max(0, at - 40);
+      return span.text.slice(start, at + first.length + 60).trim();
+    }
+    const inTitle = fields.title.indexOf(first);
+    if (inTitle >= 0) return fields.title.slice(0, 80);
+    const at = fields.responses.indexOf(first);
+    if (at >= 0) {
+      const start = Math.max(0, at - 40);
+      return fields.responses.slice(start, at + first.length + 60).replace(/\n/gu, ' ').trim();
+    }
+    return '';
+  })();
+
+  return { where: [...new Set(hits.flatMap((hit) => hit.where))], context };
+}
+
+/**
  * 读取一个会话的标题、轮数与逐轮大纲。
  * 在线会话读活投影；冷会话按 header 读持久化投影缓存（零日志 I/O）。
  * @param ctx Host Context。
@@ -185,12 +281,17 @@ function filterRecords(records, options) {
  * @returns 文本。
  */
 function renderList(rows, options) {
-  const { scope, limit, cwdTotal, workspaceTotal } = options;
+  const { scope, limit, cwdTotal, workspaceTotal, query, searched } = options;
   const scopeLabel = { active: '未归档', archived: '已归档', all: '全部' }[scope];
   const shown = rows.slice(0, limit);
+  const filterNote =
+    typeof query === 'string' && query.length > 0
+      ? `，关键词「${query}」粗筛（从 ${searched} 条里命中 ${rows.length} 条）`
+      : '';
 
   const head = [
     `会话清单（scope=${scope}，${scopeLabel}）本范围共 ${rows.length} 条`,
+    filterNote,
     rows.length > shown.length ? `，显示前 ${shown.length} 条` : '',
     cwdTotal !== workspaceTotal ? `；当前目录 ${cwdTotal} 条，全部工作目录 ${workspaceTotal} 条` : '',
     '。',
@@ -204,13 +305,14 @@ function renderList(rows, options) {
     if (row.pinned) marks.push('置顶');
     lines.push(
       `${row.time}\t${row.turns ?? '?'}\t${row.origin === 'subagent' ? '子智能体' : '用户'}\t` +
-        `${row.sessionId}${marks.length > 0 ? ` [${marks.join(' ')}]` : ''}\t${row.title ?? '(无标题)'}`,
+        `${row.sessionId}${marks.length > 0 ? ` [${marks.join(' ')}]` : ''}\t${row.title ?? '(无标题)'}` +
+        `${row.hit !== undefined ? `\n\t命中：${row.hit.where.join('、')}｜${row.hit.context}` : ''}`,
     );
   }
   if (rows.length === 0) lines.push('（该范围内没有会话）');
   lines.push(
     '',
-    '要看某个会话讲了什么，传 session_id 获取逐轮摘要；按关键词搜正文用 session_search。',
+    '要看某个会话讲了什么，传 session_id 获取逐轮摘要；要按关键词在缓存里粗筛清单，传 query（比 session_search 快，但只覆盖标题与每轮开头）；要精确搜全量正文用 session_search。',
     '要给它发消息或归档，给本工具传 action 与同一个 session_id。',
   );
   return lines.join('\n');
@@ -496,10 +598,19 @@ async function executeSession(ctx, args, exec) {
 
   // ── 未指定 session_id：列清单 ────────────────────────────
   const scoped = filterRecords(inWorkspace, { origin, scope, archived });
+  const query = typeof args.query === 'string' ? args.query.trim() : '';
+  // 关键词按空白拆分后全部命中才算匹配；中文不分词，靠子串。
+  const terms = query
+    .split(/\s+/u)
+    .map((term) => normalizeForSearch(term))
+    .filter((term) => term.length > 0);
   const rows = [];
   for (const record of scoped) {
     const header = record.header;
     const hints = await readHints(ctx, header);
+    // 有关键词时先粗筛，命中才进结果，顺带带上命中位置与上下文。
+    const hit = terms.length > 0 ? matchSession(hints, terms) : undefined;
+    if (terms.length > 0 && hit === undefined) continue;
     rows.push({
       sessionId: publicId(header),
       createdAt: header.createdAt,
@@ -510,6 +621,7 @@ async function executeSession(ctx, args, exec) {
       title: hints.title,
       turns: hints.turns,
       time: formatTime(header.createdAt),
+      hit,
     });
   }
   rows.sort((left, right) => (right.createdAt ?? 0) - (left.createdAt ?? 0));
@@ -519,6 +631,8 @@ async function executeSession(ctx, args, exec) {
     limit,
     cwdTotal: inWorkspace.length,
     workspaceTotal: records.length,
+    query,
+    searched: scoped.length,
   });
 }
 
@@ -1083,6 +1197,25 @@ const COLLABORATOR_KEY = 'sessionHubCollaborators';
  * @param event 一条会话事件。
  * @returns 目标会话 id，或 undefined。
  */
+// NOTE: 会话 id 的真实形态：DSH 的会话 id 一律是 uuid（对外带 `session-` 前缀）。
+// 投影只认这个形态，用来挡掉模型填进来的占位符（`list` / `current` / 空串）。
+const SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+
+/**
+ * 判断一个值是否是真实的会话 id，并归一化成裸 uuid。
+ *
+ * 之前只判「非空字符串」，于是模型把 `session_id` 填成 `list` / `current` /
+ * 空格这些占位符时也被当成了一次协作往来，界面上就出现点不开、也不存在的条目。
+ *
+ * @param value 候选会话 id（可带 `session-` 前缀，允许首尾空白）。
+ * @returns 裸 uuid；不是真实会话 id 时返回 undefined。
+ */
+function realSessionIdOf(value) {
+  if (typeof value !== 'string') return undefined;
+  const id = normalizeId(value.trim());
+  return SESSION_ID_PATTERN.test(id) ? id : undefined;
+}
+
 // NOTE: 双向投影（我发给别人）：从 tool/call 事件取出 send 的目标会话 id
 function sendTargetOf(event) {
   if (event?.type !== 'tool/call') return undefined;
@@ -1095,8 +1228,10 @@ function sendTargetOf(event) {
     return undefined;
   }
   if (args?.action !== 'send') return undefined;
-  if (typeof args.session_id !== 'string' || args.session_id.length === 0) return undefined;
-  return normalizeId(args.session_id);
+  // 与执行器同源的判据：content 为空时 executeControl 直接返回
+  // 「必须提供非空的 content」，那次调用什么也没发出去，因此不该计入协作专家。
+  if (typeof args.content !== 'string' || args.content.trim().length === 0) return undefined;
+  return realSessionIdOf(args.session_id);
 }
 
 /**
@@ -1183,10 +1318,13 @@ function referencedSessionIds(event) {
  */
 // NOTE: 双向投影：同 id 去重，保留最近往来时间与方向，按时间倒序
 function absorbCollaborator(entries, id, at, dir) {
-  if (id === undefined) return entries;
-  const index = entries.findIndex((entry) => entry.id === id);
+  // 统一入口守卫：三条写入路径（我发出的 / 我收到的 / 召回消息）都经这里，
+  // 因此非真实会话 id 一律挡在落库之前，不只依赖各自的调用点判别。
+  const real = realSessionIdOf(id);
+  if (real === undefined) return entries;
+  const index = entries.findIndex((entry) => entry.id === real);
   if (index !== -1 && entries[index].at >= at) return entries;
-  const entry = { id, at, dir };
+  const entry = { id: real, at, dir };
   const next = index === -1 ? [...entries, entry] : entries.map((item, i) => (i === index ? entry : item));
   next.sort((left, right) => right.at - left.at);
   return next;
@@ -1231,10 +1369,15 @@ async function registerCollaboratorProjection(ctx) {
             typeof entry.at === 'number',
         );
         const self = typeof value?.self === 'string' && value.self.length > 0 ? value.self : undefined;
-        // NOTE: 落库状态里已有的自引用脏条目一并剔除。
-        const clean = self === undefined
-          ? entries
-          : entries.filter((entry) => normalizeId(entry.id) !== self);
+        // NOTE: 落库状态里已有的脏条目一并剔除，分两类：
+        //   ① 自引用（自己不是自己的协作专家）；
+        //   ② id 不是真实 uuid 的占位符（`list` / `current` / 空串），
+        //      它们由旧版过宽的判定写进去，此处自愈，无需手工清库。
+        const clean = entries.filter((entry) => {
+          const id = realSessionIdOf(entry.id);
+          if (id === undefined) return false;
+          return self === undefined || id !== normalizeId(self);
+        });
         return { entries: clean, pending: value?.pending === true, self };
       },
     },
@@ -1303,7 +1446,7 @@ export function apply(ctx) {
       name: 'session',
       description:
         'DSH 会话中心：读取会话内容，并按 id 操控其他会话。\n' +
-        '【只读】不传 action 时：① 不带 session_id 列出会话清单（标题、轮数、来源、归档/置顶状态、id）；② 传 session_id 返回逐轮摘要；③ 再传 mode 返回该会话的完整对话文本。默认范围是当前工作目录。按关键词搜正文请用 session_search。\n' +
+        '【只读】不传 action 时：① 不带 session_id 列出会话清单（标题、轮数、来源、归档/置顶状态、id）；② 传 query 按关键词在缓存里粗筛清单（快，无需全量搜索）；③ 传 session_id 返回逐轮摘要；④ 再传 mode 返回该会话的完整对话文本。默认范围是当前工作目录。\n' +
         '【写操作】传 action 时：create（新建会话）、rename（改名，content 为新标题）、send（发消息）、interrupt（中断当前轮）、archive（归档）、unarchive（取消归档）、pin（置顶）、unpin（取消置顶）。\n' +
         '安全约束：不能给子智能体会话发消息；归档会话必须先取消归档才能发；发消息默认只允许同工作目录，跨目录要显式传 cwd；归档正在运行的会话需要 confirm=true；检测到 A→B→A 回环会拒绝。',
       parameters: {
@@ -1313,12 +1456,14 @@ export function apply(ctx) {
             type: 'string',
             enum: ACTION_VALUES,
             description:
-              '省略 = 只读浏览。传值时执行写操作：create（新建会话，可选 title 一次命名）、rename（改名，content 或 title 作为新标题）、send（发一条消息）、interrupt（中断当前轮，保留队列）、archive（归档）、unarchive（取消归档）、pin（置顶）、unpin（取消置顶）。',
+              '省略 = 只读浏览。传值时执行写操作：create（新建会话，可选 title 一次命名）、rename（改名，content 或 title 作为新标题）、send（发一条消息）、interrupt（中断当前轮，保留队列）、archive（归档）、unarchive（取消归档）、pin（置顶）、unpin（取消置顶）。' +
+              '重要：只读浏览（列清单 / 读摘要 / 读全文 / 按关键词粗筛）一律不要传 action，也不要传 content；只有真正要发消息给另一个会话时才传 action=send。',
           },
           content: {
             type: 'string',
             description:
-              'action=send 时必填：要发给目标会话的正文，会在开头自动标注来源会话；action=rename 时必填：新标题（与 title 等价）。',
+              'action=send 时必填：要发给目标会话的正文，会在开头自动标注来源会话；action=rename 时必填：新标题（与 title 等价）。' +
+              'action=send 时必须非空，空正文会被拒绝且不产生任何发送。只读浏览不要传本字段。',
           },
           confirm: {
             type: 'boolean',
@@ -1341,6 +1486,12 @@ export function apply(ctx) {
             type: 'string',
             enum: SCOPE_VALUES,
             description: '范围：active（默认，未归档/页面可见）、archived（已归档）、all（全部）。',
+          },
+          query: {
+            type: 'string',
+            description:
+              '列清单时按关键词粗筛：以空白分隔的多个词须全部命中（AND）。匹配范围是投影缓存里的标题、每轮 prompt 的前 ~50 字、每轮回复摘要的前 ~120 字，因此只读约 5 MB 缓存、不触碰原始日志，比 session_search 快得多。\n' +
+              '定位是**粗筛**：命中说明大概率相关，未命中不代表一定无关（长正文中段的关键词搜不到）。要精确搜全量正文仍用 session_search 配合 session_event_read。',
           },
           origin: {
             type: 'string',

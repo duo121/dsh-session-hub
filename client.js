@@ -41,6 +41,7 @@ window.__ModuleLoader__.load({
 			'activity.inactive': '空闲',
 			'row.archived': '已归档',
 			'row.archivedHint': '该会话已归档，先在侧栏的归档中取消归档再打开。',
+			'row.openFailed': '无法打开该会话：它已不存在或不是真实会话 id。',
 			// NOTE: UI 增强：最近往来相对时间与方向
 			'row.lastExchange': '{value}前',
 			'row.lastExchange.now': '刚刚',
@@ -62,6 +63,7 @@ window.__ModuleLoader__.load({
 			'activity.inactive': 'Idle',
 			'row.archived': 'Archived',
 			'row.archivedHint': 'This session is archived. Unarchive it from the sidebar first.',
+			'row.openFailed': 'Cannot open this session: it no longer exists or is not a real session id.',
 			// NOTE: UI 增强：最近往来相对时间与方向
 			'row.lastExchange': '{value} ago',
 			'row.lastExchange.now': 'just now',
@@ -185,6 +187,9 @@ window.__ModuleLoader__.load({
 				// NOTE: 点击已归档行时的提示（DSH 不允许 retain 归档会话，保持既有行为并提示）
 		/** 点击已归档行时的提示（DSH 不允许 retain 归档会话）。 */
 			const [archivedNotice, setArchivedNotice] = react.useState(false);
+			// 打开失败提示：独立于 archivedNotice，因为失败发生在弹框已关闭之后，
+			// 不能依赖「重开时被 changeOpen 清掉」的那一套。
+			const [openFailedNotice, setOpenFailedNotice] = react.useState(false);
 			const [menuPosition, setMenuPosition] = react.useState(undefined);
 			const rootRef = react.useRef(null);
 			const triggerRef = react.useRef(null);
@@ -282,6 +287,13 @@ window.__ModuleLoader__.load({
 				return () => clearInterval(timer);
 			}, [open]);
 
+			// 打开失败提示：4 秒后自动消失，避免长期占据界面。
+			react.useEffect(() => {
+				if (!openFailedNotice) return;
+				const timer = setTimeout(() => setOpenFailedNotice(false), 4000);
+				return () => clearTimeout(timer);
+			}, [openFailedNotice]);
+
 			if (!Array.isArray(ids) || ids.length === 0) return null;
 
 			// NOTE: UI 增强：兜底分支补上新 key，缺 t 时也不会显示错文案
@@ -293,6 +305,7 @@ window.__ModuleLoader__.load({
 				'activity.running': '正在运行',
 				'activity.inactive': '空闲',
 				'row.archived': '已归档',
+				'row.openFailed': '无法打开该会话：它已不存在或不是真实会话 id。',
 				'row.lastExchange': '{value}前',
 				'row.lastExchange.now': '刚刚',
 				'row.lastExchange.minutes': '{n} 分钟',
@@ -339,7 +352,10 @@ window.__ModuleLoader__.load({
 					try {
 						props?.uiWorkspace?.openSession?.(`session-${id}`);
 					} catch {
-						// 打开失败不影响计数本身。
+						// 打开失败不再静默：早先这里空吞异常，点到不存在的会话
+						// （例如旧版投影写进来的占位符条目）时「点了没反应」，
+						// 用户无法分辨是没点到还是坏了。现在给出可见提示。
+						setOpenFailedNotice(true);
 					}
 				});
 			};
@@ -493,6 +509,21 @@ window.__ModuleLoader__.load({
 											children: tr('row.archivedHint'),
 										}),
 								],
+							}),
+							document.body,
+						),
+					// 打开失败提示：弹框此时已关闭，因此挂在根节点上单独成层，
+					// 复用同一个触发器定位算法，让提示就地出现在头部指示器下方。
+					openFailedNotice &&
+						react_dom.createPortal(
+							react_jsx_runtime.jsx('div', {
+								className: 'shub_menu',
+								style: menuPositionOf(triggerRef.current ?? rootRef.current),
+								'data-session-hub-open-failed': '',
+								children: react_jsx_runtime.jsx('div', {
+									className: 'shub_notice',
+									children: tr('row.openFailed'),
+								}),
 							}),
 							document.body,
 						),

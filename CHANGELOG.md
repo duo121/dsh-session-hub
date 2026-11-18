@@ -2,6 +2,30 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 SemVer。
 
+## [1.0.1] - 2026-11-18
+
+### 修复
+
+- **协作专家列表出现点不开、无标题的幽灵条目**：模型有时会把只读调用填成
+  `{"action":"send","content":"","session_id":"list"}` 这种半截形态，执行器拒绝后什么也没发，
+  但投影只判 `action === 'send'` 且 `session_id` 非空，于是把 `list` / `current` / 空串
+  记成了协作会话。
+  - `sendTargetOf`：改为只认真实 uuid，且要求 `content` 非空（与执行器同源判据）。
+  - `absorbCollaborator`：统一入口守卫，三条写入路径（我发出的 / 我收到的 / 召回消息）都挡住非真实 id。
+  - `stateSchema.parse`：加载时自动剔除历史脏条目，无需手工清库。
+- **点击失效时静默无声**：`openSession` 用空 `try/catch` 吞掉异常，点到不存在的会话没有任何反馈。
+  现在给出可见提示（4 秒后自动消失）。
+- 工具 schema 硬化 `action` / `content` 的描述，减少模型产生上述半截调用。
+  注：DSH 的 tool-schema 只支持静态 `required`，`if/then`、`anyOf`、`dependentRequired`、
+  根级 `oneOf` 均不被支持，因此无法在 schema 层表达「action=send 时 content 必填」，
+  只能靠投影守卫兜底。
+
+### 新增
+
+- `session` 工具的 `query` 参数：列清单时按关键词在投影缓存里粗筛（AND 语义），
+  只读约 5 MB 缓存、不触碰原始日志，比 `session_search` 快得多；命中时附带命中位置与上下文。
+  定位为粗筛，精确搜全量正文仍需 `session_search`。此功能此前只存在于本机部署目录，本次补回仓库。
+
 ## [1.0.0] - 2026-11-16
 
 
