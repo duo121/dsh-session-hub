@@ -91,7 +91,7 @@ cp -R dsh-session-hub ~/.dsh-local-plugins/
 | 参数 | 作用 |
 | --- | --- |
 | （不传 action） | 只读：列会话清单；传 `session_id` 看逐轮摘要；再传 `mode`（summary/dialog/full）看全文 |
-| `action=create` | 新建会话（`title` 可同时命名，`cwd` 指定工作目录） |
+| `action=create` | 新建会话（`title` 可同时命名，`cwd` 指定工作目录）。注意：同一工作区里若已有**没开始过回合**的空白会话，控制器会直接复用那个（结果里会明确提示「复用了已有的空白会话」），不会多出一个新会话 |
 | `action=rename` | 改名（`content` 即新标题） |
 | `action=send` | 发消息（`content` 必填；`receipt: true` 要求自动回执；跨工作目录需显式传 `cwd`） |
 | `action=interrupt` | 中断目标当前轮（保留队列） |

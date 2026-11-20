@@ -822,9 +822,20 @@ async function executeControl(ctx, args, exec) {
 
   // create 不需要 session_id；其余动作都需要。
   if (action !== 'create') {
+    // NOTE: 先确认 session_id 真的是会话 id，再往下做其他检查——
+    // 否则模型把 session_id 填成 `list` / `current` / `self` 这类占位符时，
+    // 会先撞上「跨目录」之类的其它分支，报出一条与真实原因不符的提示。
     if (typeof args.session_id !== 'string' || args.session_id.trim().length === 0) {
       return '必须提供 session_id（来自本工具不带参数列出的清单）。';
     }
+    const canonical = canonicalSessionId(args.session_id);
+    if (canonical === undefined) {
+      return (
+        `session_id「${args.session_id.trim()}」不是会话 id。会话 id 形如 ` +
+        `${'session-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'}；请先不带 action、不带 session_id 调用本工具列出清单，复制真实 id。`
+      );
+    }
+    args.session_id = canonical;
   }
 
   // 只有 create 不依赖工作区注册表；其余归档/置顶/改名都依赖。
@@ -860,6 +871,11 @@ async function executeControl(ctx, args, exec) {
     }
     const createRequest = workspace !== undefined ? { workspaceId: workspace.id } : { cwd };
 
+    // NOTE: 复用检测的基线必须在 create 之前取：create 之后再列清单，
+    // 新会话（或刚被复用的那个）已经在清单里，判断会永远误报「复用」。
+    // 取不到清单（异常）就退化成 undefined，即「不做复用判断」，绝不因此挡住建会话。
+    const idsBeforeCreate = await workspaceSessionIds(ctx, exec, workspace, cwd);
+
     let created;
     try {
       created = await controller.create(createRequest);
@@ -876,6 +892,9 @@ async function executeControl(ctx, args, exec) {
         if (resolved !== undefined && typeof resolved.attachSession === 'function') {
           await resolved.attachSession(newId);
           workspace = resolved;
+          // NOTE: 只走 cwd 分支时，create 自己不会 attach，控制器也就不会发
+          // api-session/added；补挂之后要自己补一发，否则侧栏要刷新才看得到。
+          notifySessionAdded(ctx, { id: newId });
         }
       } catch {
         // 挂靠失败不阻断建会话，返回里会说明。
@@ -904,19 +923,31 @@ async function executeControl(ctx, args, exec) {
     }
 
     const presetNote = created?.agentPreset !== undefined ? `（预设 ${created.agentPreset}）` : '';
+    // NOTE: 措辞按分支给：命名了就不能再说「可以用 action=rename 起名」，
+    // 否则同一条结果里前后自相矛盾，模型会再白白调一次 rename。
+    const nextStep = renamedTo !== undefined
+      ? '已经可以直接用 action=send 让它开始干活。'
+      : '它现在是空的，可以用 action=rename 给它起名，用 action=send 让它开始干活。';
     const groupNote =
       workspace !== undefined
         ? `已挂到工作区分组「${workspace.title ?? workspace.path}」。`
         : '注意：该目录还没有工作区分组，会话可能不在侧栏里显示，先在界面打开这个目录一次即可。';
-    const blankHint = renamedTo === undefined
-      ? '它现在是空白会话，只有被选中时才显示为新会话占位行；发第一条消息（action=send）或点开它之后才会正式进入侧栏。\n'
-      : '';
+    const main = renamedTo !== undefined
+      ? `已新建会话 ${newId}${presetNote}，目录 ${cwd}。\n${titleNote}${groupNote}\n${nextStep}`
+      : `已新建会话 ${newId}${presetNote}，目录 ${cwd}。\n${titleNote}` +
+        '它现在是空白会话，只有被选中时才显示为新会话占位行；发第一条消息（action=send）或点开它之后才会正式进入侧栏。\n' +
+        `${groupNote}\n${nextStep}`;
+
+    // NOTE: 空白会话复用：session.create 在同一个 workspace 里遇到「已存在且没有
+    // turn/start」的会话时会直接把它复用（见控制器 claim/reuseLive）。于是上一次
+    // create 的空白会话会被本次悄悄顶掉，实际并没有多出一个会话。这里用 create
+    // 之前取的 id 基线判定，把这件事说清楚，免得模型以为「新建成功」后发到了别处。
+    if (reusedBlankSession(idsBeforeCreate, newId) === undefined) return main;
     return (
-      `已新建会话 ${newId}${presetNote}，目录 ${cwd}。\n` +
-      titleNote +
-      blankHint +
-      `${groupNote}\n` +
-      '它现在是空的，可以用 action=rename 给它起名，用 action=send 让它开始干活。'
+      `注意：控制器复用了已有的空白会话 ${newId}（同一目录下还没有开始过回合的会话会被复用），` +
+      `这次并没有额外多出一个会话。${renamedTo === undefined ? '' : '它原来的标题已被本次的命名覆盖。'}\n` +
+      '如果你本意是开一个全新的会话，先给这个空白会话发第一条消息，或者直接在界面新建。\n' +
+      main
     );
   }
 
@@ -1214,6 +1245,76 @@ function realSessionIdOf(value) {
   if (typeof value !== 'string') return undefined;
   const id = normalizeId(value.trim());
   return SESSION_ID_PATTERN.test(id) ? id : undefined;
+}
+
+/**
+ * 把执行器收到的 `session_id` 规范成对外的 `session-<uuid>` 形态。
+ *
+ * 与 {@link realSessionIdOf} 同一判据（都是真实 uuid），但返回带前缀的对外 id：
+ * 执行器的写操作一律用它，既挡掉 `list` / `current` 这类占位符，
+ * 又把裸 uuid 与带前缀两种写法统一成同一种，避免同一会话走到不同查找分支。
+ *
+ * @param value 候选会话 id（可带 `session-` 前缀，允许首尾空白）。
+ * @returns `session-<uuid>`；不是真实会话 id 时返回 undefined。
+ */
+function canonicalSessionId(value) {
+  const id = realSessionIdOf(value);
+  return id === undefined ? undefined : `session-${id}`;
+}
+
+/**
+ * 列出某个工作区（或某个目录）里当前已知的会话 id（裸 uuid）。
+ *
+ * 只用于 create 的「复用检测」，所以这里只收集 id。归档会话也算在内：
+ * 控制器判断「能不能复用」时同样不看归档状态。
+ *
+ * @param ctx Host Context。
+ * @param exec 工具执行上下文（提供取消信号）。
+ * @param workspace 已解析出的工作区实体，可能为 undefined。
+ * @param cwd 目标目录（workspace 为 undefined 时用来过滤同目录会话）。
+ * @returns 裸 uuid 集合；清单读不到时返回 undefined（表示「无法判断」）。
+ */
+async function workspaceSessionIds(ctx, exec, workspace, cwd) {
+  try {
+    const records = await ctx.sessionQuery.listSessions(exec.signal);
+    const ids = new Set();
+    let workspaceScoped = false;
+    for (const record of records) {
+      const raw = normalizeId(record.header.id);
+      const members = workspace !== undefined && Array.isArray(workspace.sessionIds) ? workspace.sessionIds : undefined;
+      if (members !== undefined) {
+        workspaceScoped = true;
+        if (members.some((id) => normalizeId(id) === raw)) ids.add(raw);
+        continue;
+      }
+      if (cwd !== undefined && record.header.cwd === cwd) ids.add(raw);
+    }
+    // 工作区实体拿得到、但 sessionIds 快照不可用时，退回按目录过滤。
+    if (workspace !== undefined && !workspaceScoped) {
+      for (const record of records) {
+        if (cwd !== undefined && record.header.cwd === cwd) ids.add(normalizeId(record.header.id));
+      }
+    }
+    return ids;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * `sessionController.create()` 会不会悄悄复用已有的空白会话。
+ *
+ * 控制器在同一个 workspace 里遇到「已存在、没有任何 turn/start、且预设可切换」
+ * 的会话时会直接返回它（claim → reuseLive），所以连续两次 create 可能只得到
+ * 同一个会话。这里按「调用前就存在的 id」判定：命中说明本次是复用而非新建。
+ *
+ * @param before create 之前取的 id 集合，undefined 表示无法判断。
+ * @param newId 控制器返回的会话 id。
+ * @returns 命中复用时返回 newId，否则 undefined。
+ */
+function reusedBlankSession(before, newId) {
+  if (before === undefined) return undefined;
+  return before.has(normalizeId(newId)) ? newId : undefined;
 }
 
 // NOTE: 双向投影（我发给别人）：从 tool/call 事件取出 send 的目标会话 id
