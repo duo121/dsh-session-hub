@@ -823,6 +823,9 @@ async function executeControl(ctx, args, exec) {
   }
 
   // create 不需要 session_id；其余动作都需要。
+  // NOTE: 工具入参对象在 DSH 里是只读的，绝不能回写 args.xxx（会抛
+  // "Cannot assign to read only property"）。规范化结果一律放局部变量。
+  let targetSessionId = args.session_id;
   if (action !== 'create') {
     // NOTE: 先确认 session_id 真的是会话 id，再往下做其他检查——
     // 否则模型把 session_id 填成 `list` / `current` / `self` 这类占位符时，
@@ -837,7 +840,7 @@ async function executeControl(ctx, args, exec) {
         `${'session-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'}；请先不带 action、不带 session_id 调用本工具列出清单，复制真实 id。`
       );
     }
-    args.session_id = canonical;
+    targetSessionId = canonical;
   }
 
   // 只有 create 不依赖工作区注册表；其余归档/置顶/改名都依赖。
@@ -954,9 +957,9 @@ async function executeControl(ctx, args, exec) {
   }
 
   const records = await ctx.sessionQuery.listSessions(exec.signal);
-  const record = findRecord(records, args.session_id);
+  const record = findRecord(records, targetSessionId);
   if (record === undefined) {
-    return `找不到会话 ${args.session_id}。请先不带参数调用本工具列出清单，确认真实的会话 id。`;
+    return `找不到会话 ${targetSessionId}。请先不带参数调用本工具列出清单，确认真实的会话 id。`;
   }
   const id = publicId(record.header);
   const archived = archivedSet(ctx);
