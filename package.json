@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-hub",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "type": "module",
   "description": "DSH 会话中心：单工具 session——读清单/摘要/完整对话 + 新建/改名/发消息/中断/归档/置顶；协作专家头部指示与自动回执",
   "exports": {

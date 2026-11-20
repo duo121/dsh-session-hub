@@ -2,7 +2,7 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 SemVer。
 
-## [1.0.2] - 2026-11-20
+## [1.0.3] - 2026-11-20
 
 ### 修复
 
@@ -16,6 +16,9 @@
   第一次回执成功后，此后每次 `send` 都不再回执，观感就是链路断了。
   改为按轮次记账的 `lastAutoReplyTo`：同一轮只回一次，只有 A 刚回给 B、B 又立刻回给 A
   这种紧邻回声才断开，正常多轮协作可以持续往来。
+- **`session` 工具整体不可用（严重）**：`executeSession` 里 `args.session_id = canonical`
+  直接改写 DSH 传入的只读参数对象，抛 `Cannot assign to read only property 'session_id'`，
+  导致除 `create` 外**所有 action 全部失效**。改用局部变量 `targetSessionId` 传递，不再触碰 `args`。
 - **发送方不在内存时回执被静默丢弃**：旧实现 `agents.get()` 取不到 agent 就直接 `return`，
   既无日志也无提示，用户完全看不到痕迹。现在改为退回 `sessionController.prompt()`
   冷启动投递（与 `controlSend` 同一控制器）；确实无法投递时至少留下 `logger.warn`。
