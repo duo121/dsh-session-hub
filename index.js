@@ -772,8 +772,10 @@ async function controlSend(ctx, record, senderId, content, archived, exec, recei
 
   // 正文前缀：source 是 {kind:'user'}，不标注目标会误以为是用户本人。
   const title = (await readHints(ctx, record.header)).title ?? id;
-  // NOTE: receipt=true 时在待回执表登记（目标 id → 发送方 id），正文不带任何机器标记
-  if (receipt === true && senderId !== undefined) pendingReceipts.set(normalizeId(id), normalizeId(senderId));
+  // NOTE: 回执登记。默认开启：协作发消息的目的就是拿到对方的结论，
+  // 「对方跑完了但发送方什么都没收到」曾是最主要的投诉。
+  // 仅当模型显式传 receipt:false 时才关闭。正文不带任何机器标记。
+  if (receipt !== false && senderId !== undefined) pendingReceipts.set(normalizeId(id), normalizeId(senderId));
   // NOTE: 标注：正文首行是发送方的 session 引用（渲染为会话标签），标题取发送方
   const senderTitle = senderId === undefined ? undefined : (await readHints(ctx, { id: normalizeId(senderId) })).title;
   const body = `${formatSenderMention(senderId, senderTitle)}\n${content}`;
@@ -976,7 +978,8 @@ async function executeControl(ctx, args, exec) {
     case 'send': {
       const content = typeof args.content === 'string' ? args.content.trim() : '';
       if (content.length === 0) return 'action=send 时必须提供非空的 content。';
-      return controlSend(ctx, record, senderId, content, archived, exec, args.receipt === true);
+      // 回执默认开启（undefined 视为 true），只有显式 false 才关闭。
+      return controlSend(ctx, record, senderId, content, archived, exec, args.receipt !== false);
     }
 
     case 'rename': {
@@ -1086,11 +1089,11 @@ async function executeControl(ctx, args, exec) {
 
 // NOTE: 自动回执模块：目标会话 turn/end 时把该轮最终回复发回发送方
 /**
- * 识别方式：send 带 receipt=true 时在待回执表登记（目标 id → 发送方 id），目标 turn/end 完成时取出。
- * 循环防护：同一对会话（无序）只自动回一次（`pairs` 账本），
- * 同一轮只回一次（`delivered` 账本），普通消息不带标记则完全不触发。
+ * 识别方式：send 默认登记（显式 receipt:false 才不登记），目标 id → 发送方 id，目标 turn/end 完成时取出。
+ * 循环防护：同一轮只回一次（`delivered` 账本），A→B→A 紧邻回声才断开（`lastAutoReplyTo`），
+ * 不再对会话对做永久封禁——旧实现导致同一对会话第二次发送永远拿不到回执。
  */
-// NOTE: 待回执表：目标会话 id -> 发送方会话 id（send receipt=true 时登记，目标 turn/end 完成时取出）
+// NOTE: 待回执表：目标会话 id -> 发送方会话 id（send 默认登记，目标 turn/end 完成时取出）
 const pendingReceipts = new Map();
 
 /**
@@ -1115,10 +1118,17 @@ function lastAssistantText(events) {
  * 监听目标会话 turn/end，自动把最终回复发回发送方。
  * @param ctx Host Context。
  */
-// NOTE: 自动回执监听（循环防护：同一对会话只回一次）
+// NOTE: 自动回执监听
+// 循环防护改成「按轮次」而不是「按会话对永久锁」：
+// 旧实现用 pairs 把同一对会话永久封死，用户第一次回执成功后第二次 send 永远不再回执，
+// 观感就是「链路断了」。现在只挡「同一目标同一轮重复回」和「A→B→A 紧邻反扑」，
+// 正常的多轮协作可以持续往来。
 function installReceiptRelay(ctx) {
   const delivered = new Set(); // 同一轮只回一次
-  const pairs = new Set(); // 同一对会话只自动回一次
+  // NOTE: 回声账本：replierKey -> senderKey 表示「replier 刚自动回过 sender」。
+  // 只有当对方恰好刚回过自己（A<->B 互为最近一次自动回执对象）才断开，
+  // 正常多轮协作不受影响。
+  const lastAutoReplyTo = new Map(); // 回复方裸 id -> 它刚回过的收件方裸 id
 
   ctx.on('session/event', (session, event) => {
     if (event?.type !== 'turn/end') return;
@@ -1139,13 +1149,20 @@ function installReceiptRelay(ctx) {
     pendingReceipts.delete(key); // 取出即删，同一请求只回一次
     if (normalizeId(senderId) === normalizeId(header.id)) return; // 不能回给自己
 
-    // 循环防护：同一对（无序）只自动回一次。
-    const pairKey = [normalizeId(senderId), normalizeId(header.id)].sort().join('<->');
-    if (pairs.has(pairKey)) return;
-    pairs.add(pairKey);
+    // 回声防护：A 刚自动回给 B，若 B 立刻又自动回给 A，才是死循环。
+    const replierKey = normalizeId(header.id);
+    const senderKey = normalizeId(senderId);
+    if (lastAutoReplyTo.get(senderKey) === replierKey) {
+      return; // 对方刚回过我，我再自动回过去就是回声
+    }
 
     const reply = lastAssistantText(events);
     if (reply === undefined) return;
+
+    // 记账：replier 即将自动回给 sender
+    lastAutoReplyTo.set(replierKey, senderKey);
+    // 一旦有新的回执产生，对方那条旧记账就应该失效，避免误伤下一轮
+    lastAutoReplyTo.delete(senderKey);
 
     // NOTE: 归因修正：回执的「来自」应是回复方（本会话），不是原始发送方
     void deliverReceipt(ctx, senderId, targetId, turn, reply).catch((reason) => {
@@ -1160,14 +1177,12 @@ function installReceiptRelay(ctx) {
  * @param senderId 发送方会话 id。
  * @param reply 目标会话该轮的最终回复。
  */
-// NOTE: 回执投递：经 agents 句柄按发送方状态注入（idle→followup，running→steer，closing→inject），与子智能体 notifySettlement 同一机制
+// NOTE: 回执投递：优先经 agents 句柄按发送方状态注入（idle→followup，running→steer，closing→inject），
+// 与子智能体 notifySettlement 同一机制；发送方不在内存（冷会话）时退回 sessionController.prompt 冷启动投递，
+// 绝不再静默丢弃——旧实现这里直接 return，用户永远看不到回执，且日志里没有任何痕迹。
 // NOTE: 归因修正 + id 唯一化：收件人是原始发送方，来源归因是回复方
 async function deliverReceipt(ctx, recipientId, replierId, turn, reply) {
-  const agents = ctx.get('agents');
-  if (agents === undefined) return;
-  const agent = agents.get(`session-${normalizeId(recipientId)}`);
-  if (agent === undefined || agent === null) return;
-
+  const recipient = publicId({ id: normalizeId(recipientId) });
   const replier = publicId({ id: normalizeId(replierId) });
   // 正文 + source 同子智能体 createAgentMessage 形态：
   // content 是模型可见 block 数组，source.kind='agent-message' 让目标模型知道不是用户在说话
@@ -1182,9 +1197,35 @@ async function deliverReceipt(ctx, recipientId, replierId, turn, reply) {
   // 每次回执唯一 id：回复方 + 轮次，避免同一对会话第二次回执撞 id
   const messageId = `receipt-${replier}-t${turn ?? 'x'}-${Date.now()}`;
 
-  if (agent.status === 'idle') agent.followup({ role: 'user', content, source, id: messageId });
-  else if (agent.status === 'running') agent.steer({ role: 'user', content, source, id: messageId });
-  else agent.inject({ role: 'user', content, source, id: messageId }); // closing / 其他过渡态：排队不唤醒
+  const agents = ctx.get('agents');
+  const agent = agents === undefined ? undefined : agents.get(recipient);
+
+  if (agent !== undefined && agent !== null) {
+    if (agent.status === 'idle') agent.followup({ role: 'user', content, source, id: messageId });
+    else if (agent.status === 'running') agent.steer({ role: 'user', content, source, id: messageId });
+    else agent.inject({ role: 'user', content, source, id: messageId }); // closing / 其他过渡态：排队不唤醒
+    return;
+  }
+
+  // 发送方不在内存：冷启动投递。与 controlSend 用同一个控制器，行为一致。
+  const controller = ctx.get('sessionController');
+  if (controller === undefined) {
+    ctx.logger?.warn?.(`session-hub: receipt from ${replier} dropped — sender ${recipient} is not resident and no sessionController is available`);
+    return;
+  }
+  try {
+    await controller.prompt(
+      {
+        sessionId: recipient,
+        content: [{ type: 'text', text: body }],
+        requestId: messageId,
+        mode: 'followup',
+      },
+      new AbortController().signal,
+    );
+  } catch (error) {
+    ctx.logger?.warn?.(`session-hub: receipt from ${replier} could not reach cold sender ${recipient}: ${error?.message ?? error}`);
+  }
 }
 
 function findSession(ctx, header) {
@@ -1631,11 +1672,11 @@ export function apply(ctx) {
             description:
               '限定工作目录；省略时用当前会话的 cwd。发送时跨目录需要显式传才放行；新建时指定新会话的工作目录。',
           },
-          // NOTE: 回执选项
+          // NOTE: 回执选项（默认开启）
           receipt: {
             type: 'boolean',
             description:
-              'action=send 时可选：传 true 表示要求对方回执——目标会话这一轮自然结束时，它的最终回复会自动发回本会话。同一对会话只自动回一次（防循环）。',
+              'action=send 时可选，默认 true。默认就会要求回执：目标会话这一轮自然结束时，它的最终回复自动发回本会话。只有明确不想要回复时才传 false。',
           },
         },
         additionalProperties: false,
