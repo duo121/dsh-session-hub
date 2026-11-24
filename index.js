@@ -1,8 +1,8 @@
 /**
  * session-hub：会话中心的全部能力收在 `session` 一个工具里。
  *
- * 不传 action  → 只读：列清单 / 读逐轮摘要
- * 传 action    → 写：create / rename / send / interrupt / archive / unarchive / pin / unpin
+ * action=read → 只读：列清单 / 读逐轮摘要 / 读全文
+ * 其他 action → 写：create / rename / send / interrupt / archive / unarchive / pin / unpin
  *
  * 设计要点：
  *   1. 归档闸门前置：归档会话的 pre-step 会被 archived-session-gate 静默拒绝，
@@ -26,8 +26,8 @@ export const inject = ['tools', 'sessionQuery', 'workspaceRegistry'];
 const SCOPE_VALUES = ['active', 'archived', 'all'];
 /** 来源取值。 */
 const ORIGIN_VALUES = ['any', 'user', 'subagent'];
-/** 写操作 action 的取值。 */
-const ACTION_VALUES = ['send', 'create', 'rename', 'interrupt', 'archive', 'unarchive', 'pin', 'unpin'];
+/** action 的取值。 */
+const ACTION_VALUES = ['read', 'send', 'create', 'rename', 'interrupt', 'archive', 'unarchive', 'pin', 'unpin'];
 
 /**
  * 归一化会话 id 用于比较。
@@ -561,8 +561,10 @@ async function readTranscript(ctx, record, args) {
  * @returns 文本结果。
  */
 async function executeSession(ctx, args, exec) {
-  // 传了 action 就是写操作，进入控制分支；否则是只读浏览。
-  if (typeof args.action === 'string' && args.action.length > 0) {
+  if (!ACTION_VALUES.includes(args.action)) {
+    return `必须提供有效的 action：${ACTION_VALUES.join(' / ')}。`;
+  }
+  if (args.action !== 'read') {
     return executeControl(ctx, args, exec);
   }
 
@@ -582,7 +584,7 @@ async function executeSession(ctx, args, exec) {
   if (typeof args.session_id === 'string' && args.session_id.length > 0) {
     const hit = findRecord(records, args.session_id);
     if (hit === undefined) {
-      return `找不到会话 ${args.session_id}。请先不带参数调用本工具列出清单，确认真实的会话 id。`;
+      return `找不到会话 ${args.session_id}。请先用 action=read 且不传 session_id 列出清单，确认真实的会话 id。`;
     }
     // 传了 mode 或 turn 就是要完整对话；否则保持原来的轻盈摘要。
     if (args.mode !== undefined || args.turn !== undefined || args.from_turn !== undefined || args.to_turn !== undefined) {
@@ -703,7 +705,7 @@ function explainError(error) {
   const reason = error?.details?.reason;
   switch (code) {
     case 'session/not-found':
-      return '目标会话不存在，或已不在当前数据目录中。请先用本工具不带参数确认真实 id。';
+      return '目标会话不存在，或已不在当前数据目录中。请先用 action=read 且不传 session_id 列出清单，确认真实 id。';
     case 'session/agent-busy':
       return '目标会话由子智能体路由持有，不能用本工具发送；请改用子智能体专用投递。';
     case 'session/model-unavailable':
@@ -817,10 +819,7 @@ async function controlSend(ctx, record, senderId, content, archived, exec, recei
  * @returns 文本结果。
  */
 async function executeControl(ctx, args, exec) {
-  const action = ACTION_VALUES.includes(args.action) ? args.action : undefined;
-  if (action === undefined) {
-    return `action 必须是 ${ACTION_VALUES.join(' / ')} 之一。`;
-  }
+  const { action } = args;
 
   // create 不需要 session_id；其余动作都需要。
   // NOTE: 工具入参对象在 DSH 里是只读的，绝不能回写 args.xxx（会抛
@@ -831,13 +830,13 @@ async function executeControl(ctx, args, exec) {
     // 否则模型把 session_id 填成 `list` / `current` / `self` 这类占位符时，
     // 会先撞上「跨目录」之类的其它分支，报出一条与真实原因不符的提示。
     if (typeof args.session_id !== 'string' || args.session_id.trim().length === 0) {
-      return '必须提供 session_id（来自本工具不带参数列出的清单）。';
+      return '必须提供 session_id（来自 action=read 且不传 session_id 时列出的清单）。';
     }
     const canonical = canonicalSessionId(args.session_id);
     if (canonical === undefined) {
       return (
         `session_id「${args.session_id.trim()}」不是会话 id。会话 id 形如 ` +
-        `${'session-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'}；请先不带 action、不带 session_id 调用本工具列出清单，复制真实 id。`
+        `${'session-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'}；请先用 action=read 且不传 session_id 列出清单，复制真实 id。`
       );
     }
     targetSessionId = canonical;
@@ -959,7 +958,7 @@ async function executeControl(ctx, args, exec) {
   const records = await ctx.sessionQuery.listSessions(exec.signal);
   const record = findRecord(records, targetSessionId);
   if (record === undefined) {
-    return `找不到会话 ${targetSessionId}。请先不带参数调用本工具列出清单，确认真实的会话 id。`;
+    return `找不到会话 ${targetSessionId}。请先用 action=read 且不传 session_id 列出清单，确认真实的会话 id。`;
   }
   const id = publicId(record.header);
   const archived = archivedSet(ctx);
@@ -1591,8 +1590,8 @@ export function apply(ctx) {
       name: 'session',
       description:
         'DSH 会话中心：读取会话内容，并按 id 操控其他会话。\n' +
-        '【只读】不传 action 时：① 不带 session_id 列出会话清单（标题、轮数、来源、归档/置顶状态、id）；② 传 query 按关键词在缓存里粗筛清单（快，无需全量搜索）；③ 传 session_id 返回逐轮摘要；④ 再传 mode 返回该会话的完整对话文本。默认范围是当前工作目录。\n' +
-        '【写操作】传 action 时：create（新建会话）、rename（改名，content 为新标题）、send（发消息）、interrupt（中断当前轮）、archive（归档）、unarchive（取消归档）、pin（置顶）、unpin（取消置顶）。\n' +
+        '【只读】action=read：① 不带 session_id 列出会话清单（标题、轮数、来源、归档/置顶状态、id）；② 传 query 按关键词在缓存里粗筛清单（快，无需全量搜索）；③ 传 session_id 返回逐轮摘要；④ 再传 mode 返回该会话的完整对话文本。默认范围是当前工作目录。\n' +
+        '【写操作】create（新建会话）、rename（改名，content 为新标题）、send（发消息）、interrupt（中断当前轮）、archive（归档）、unarchive（取消归档）、pin（置顶）、unpin（取消置顶）。\n' +
         '安全约束：不能给子智能体会话发消息；归档会话必须先取消归档才能发；发消息默认只允许同工作目录，跨目录要显式传 cwd；归档正在运行的会话需要 confirm=true；检测到 A→B→A 回环会拒绝。',
       parameters: {
         type: 'object',
@@ -1601,8 +1600,7 @@ export function apply(ctx) {
             type: 'string',
             enum: ACTION_VALUES,
             description:
-              '省略 = 只读浏览。传值时执行写操作：create（新建会话，可选 title 一次命名）、rename（改名，content 或 title 作为新标题）、send（发一条消息）、interrupt（中断当前轮，保留队列）、archive（归档）、unarchive（取消归档）、pin（置顶）、unpin（取消置顶）。' +
-              '重要：只读浏览（列清单 / 读摘要 / 读全文 / 按关键词粗筛）一律不要传 action，也不要传 content；只有真正要发消息给另一个会话时才传 action=send。',
+              '必填。列清单、按关键词粗筛、读摘要和读全文都用 read。只有要向另一个会话发消息时才用 send。',
           },
           content: {
             type: 'string',
@@ -1682,6 +1680,7 @@ export function apply(ctx) {
               'action=send 时可选，默认 true。默认就会要求回执：目标会话这一轮自然结束时，它的最终回复自动发回本会话。只有明确不想要回复时才传 false。',
           },
         },
+        required: ['action'],
         additionalProperties: false,
       },
       output: {
