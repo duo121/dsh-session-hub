@@ -15,7 +15,7 @@ const people = [lead, ...engineers];
 const byId = Object.fromEntries(people.map((person) => [person.id, person]));
 const ui = Object.fromEntries([
   'workspace', 'sessions', 'conversation-title', 'collaboration', 'experts', 'expert-panel',
-  'transcript', 'composer', 'reset', 'announcement',
+  'transcript', 'composer', 'reset', 'announcement', 'demo-guide',
 ].map((id) => [id, document.getElementById(id)]));
 const timers = new Map();
 let state;
@@ -137,7 +137,76 @@ function nextStep() {
   return {};
 }
 
-function renderComposer(step = nextStep()) {
+let guideTarget;
+
+function positionGuide() {
+  const guide = ui['demo-guide'];
+  if (!guideTarget?.isConnected) {
+    guide.hidden = true;
+    return;
+  }
+
+  const rect = guideTarget.getBoundingClientRect();
+  const { clientWidth: width, clientHeight: height } = document.documentElement;
+  const margin = 8;
+  const gap = 11;
+  guide.hidden = rect.bottom <= 0 || rect.top >= height || rect.right <= 0 || rect.left >= width;
+  if (guide.hidden) return;
+
+  const w = guide.offsetWidth;
+  const h = guide.offsetHeight;
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+  const clampX = (value) => clamp(value, margin, width - w - margin);
+  const clampY = (value) => clamp(value, margin, height - h - margin);
+  const session = ui.sessions.contains(guideTarget);
+  let x;
+  let y;
+  let side;
+
+  if (session && width > 700 && rect.right + gap + w <= width - margin) {
+    x = rect.right + gap;
+    y = clampY(centerY - h / 2);
+    side = 'left';
+  } else if (!session && rect.left - gap - w >= margin) {
+    x = rect.left - gap - w;
+    y = clampY(centerY - h / 2);
+    side = 'right';
+  } else {
+    x = clampX(centerX - w / 2);
+    const below = rect.bottom + gap + h <= height - margin;
+    y = clampY(below ? rect.bottom + gap : rect.top - gap - h);
+    side = below ? 'top' : 'bottom';
+  }
+
+  guide.style.left = `${x}px`;
+  guide.style.top = `${y}px`;
+  guide.dataset.arrow = side;
+  const vertical = side === 'top' || side === 'bottom';
+  guide.style.setProperty('--arrow-offset', `${clamp(vertical ? centerX - x : centerY - y, 7, (vertical ? w : h) - 7)}px`);
+}
+
+function renderGuide(step) {
+  const guide = ui['demo-guide'];
+  const previousAnchor = guideTarget?.dataset.focus;
+  guideTarget?.removeAttribute('aria-describedby');
+  guideTarget = step.session
+    ? ui.sessions.querySelector(`[data-session="${step.session}"]`)
+    : step.action && ui.composer.querySelector(`[data-${step.action}]`);
+  if (guideTarget) {
+    guideTarget.setAttribute('aria-describedby', guide.id);
+    guide.textContent = step.label;
+  }
+  positionGuide();
+  if (!guide.hidden && guideTarget.dataset.focus !== previousAnchor &&
+      !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    guide.getAnimations().forEach((animation) => animation.cancel());
+    guide.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: 'ease-out' });
+  }
+}
+
+function renderComposer(step) {
   const { active, draft, pickerOpen, tasks } = state;
   const person = active === 'lead' && draft ? byId[draft] : null;
   const picker = person && pickerOpen ? `
@@ -149,11 +218,9 @@ function renderComposer(step = nextStep()) {
   const replay = step.action === 'replay';
   const action = replay ? 'replay' : 'send';
   const actionName = replay ? step.label : '发送';
-  const highlighted = step.action === action;
   ui.composer.innerHTML = `${picker}<div class="composer">${input}<div class="composer-bar">
     <div class="composer-tools"><button type="button" class="at-button" data-at data-focus="at" aria-label="@ 引用会话" aria-expanded="${pickerOpen}" ${person ? '' : 'disabled'}>@</button><span>演示模式</span></div>
-    <button class="send-button${highlighted ? ' is-guided' : ''}" type="button" data-${action} data-focus="${action}" aria-label="${actionName}" title="${actionName}" ${person || replay ? '' : 'disabled'}>
-      ${highlighted ? `<span class="guide-label" aria-hidden="true">${step.label}</span>` : ''}
+    <button class="send-button" type="button" data-${action} data-focus="${action}" aria-label="${actionName}" title="${actionName}" ${person || replay ? '' : 'disabled'}>
       <span class="send-icon">${replay ? '<span aria-hidden="true">↺</span>' : icon.send}</span>
     </button>
   </div></div>`;
@@ -163,11 +230,9 @@ function render({ bottom = false } = {}) {
   const focus = document.activeElement?.dataset.focus;
   const step = nextStep();
   ui.sessions.innerHTML = people.map(({ id, name }) => {
-    const guided = step.session === id;
     const running = state.tasks[id] === 'running';
-    const status = guided ? step.label : running ? '运行中' : '';
-    return `<button type="button" class="session${guided ? ' is-guided' : ''}" data-session="${id}" data-focus="session-${id}" ${state.active === id ? 'aria-current="true"' : ''}>
-      <span>${name}</span><span class="session-status">${running ? spinner(true) : guided ? '<span class="indicator next" aria-hidden="true"></span>' : ''}${status}</span>
+    return `<button type="button" class="session" data-session="${id}" data-focus="session-${id}" ${state.active === id ? 'aria-current="true"' : ''}>
+      <span>${name}</span>${running ? `<span class="session-status">${spinner(true)}<span class="sr-only">运行中</span></span>` : ''}
     </button>`;
   }).join('');
   ui['conversation-title'].textContent = byId[state.active].name;
@@ -178,6 +243,7 @@ function render({ bottom = false } = {}) {
   renderExperts();
   renderTranscript();
   renderComposer(step);
+  renderGuide(step);
   if (focus) ui.workspace.querySelector(`[data-focus="${focus}"]:not(:disabled)`)?.focus({ preventScroll: true });
   if (bottom) ui.transcript.scrollTop = ui.transcript.scrollHeight;
 }
@@ -209,6 +275,8 @@ function send(fromKeyboard) {
 }
 
 reset();
+window.addEventListener('resize', positionGuide);
+window.addEventListener('scroll', positionGuide, { passive: true });
 
 // Use the original event path: rendering can replace the clicked button's icon or row.
 document.addEventListener('click', (event) => {
@@ -220,7 +288,9 @@ document.addEventListener('click', (event) => {
   }
   if (state.pickerOpen && !path.includes(ui.composer)) {
     state.pickerOpen = false;
-    renderComposer();
+    const step = nextStep();
+    renderComposer(step);
+    renderGuide(step);
   }
   if (!button || !path.includes(ui.workspace)) return;
   if (button.dataset.session) navigate(button.dataset.session);
