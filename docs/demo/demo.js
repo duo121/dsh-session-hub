@@ -257,11 +257,16 @@ function send(fromKeyboard) {
   state.unread.add(id);
   state.draft = engineers.find((entry) => state.tasks[entry.id] === 'ready')?.id ?? null;
   state.pickerOpen = false;
+  state.expertsOpen = true;
   state.view = 'chat';
   render({ bottom: true });
+  const panel = ui['expert-panel'].getBoundingClientRect();
+  if (panel.top < 0 || panel.bottom > document.documentElement.clientHeight) {
+    ui.workspace.scrollIntoView({ block: 'start' });
+  }
   const destination = nextStep().session;
   if (fromKeyboard && destination) ui.sessions.querySelector(`[data-session="${destination}"]`).focus();
-  ui.announcement.textContent = `已向${person.name}发送任务。选择会话列表中的${person.name}查看任务。`;
+  ui.announcement.textContent = `已向${person.name}发送任务。协作专家列表已展开，选择${person.name}查看任务。`;
   const timer = setTimeout(() => {
     timers.delete(id);
     state.tasks[id] = 'done';
