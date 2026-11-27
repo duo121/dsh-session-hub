@@ -1,12 +1,18 @@
 # dsh-session-hub
 
+<p align="center">
+  <img src="docs/screenshots/hero.webp" alt="dsh-session-hub：跨会话消息、协作专家、自动回执" width="100%">
+</p>
+
 让 [DSH](https://github.com/deepseek-ai) 会话互相派活，任务完成后把回复自动带回发起会话。插件提供 `session` 工具管理会话，无需修改 DSH 源码。
 
-[![项目负责人从协作专家列表查看前后端负责人的任务状态。点击打开演示。](docs/screenshots/release-running.webp)](https://duo121.github.io/dsh-session-hub/)
-
-**[打开交互演示 ↗](https://duo121.github.io/dsh-session-hub/)** · **[观看短视频 ↗](https://duo121.github.io/dsh-session-hub/video.html)** · 浏览器里的模拟工作区，无需安装 DSH。
+**[打开交互演示 ↗](https://duo121.github.io/dsh-session-hub/)** · 浏览器里的模拟工作区，无需安装 DSH。
 
 ## V1.8 发布演示
+
+[![播放 41 秒的跨会话协作演示](docs/screenshots/release-video.webp)](https://duo121.github.io/dsh-session-hub/video.html)
+
+[观看完整演示 ↗](https://duo121.github.io/dsh-session-hub/video.html) · 41 秒 · MP4 小于 0.5 MB
 
 点左侧「新会话」并跟随箭头。手机上先点左上角打开会话列表。也可点右上角「自动播放」看完整流程，随时暂停并从当前步骤继续播放。给演示地址加上 `?lang=en` 可以查看英文工具摘要。
 
