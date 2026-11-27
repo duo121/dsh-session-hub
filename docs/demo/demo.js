@@ -480,7 +480,7 @@ function schedulePlayback() {
   positionGuide();
   playbackTimer = setTimeout(() => {
     if (playing && target === guideTarget && target.isConnected) target.click();
-  }, currentStep().kind === 'visit' ? 1750 : 1150);
+  }, currentStep().kind === 'visit' ? 2200 : 1500);
 }
 
 function setPlaying(value) {

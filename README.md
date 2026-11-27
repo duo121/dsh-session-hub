@@ -4,7 +4,7 @@
 
 [![项目负责人从协作专家列表查看前后端负责人的任务状态。点击打开演示。](docs/screenshots/release-running.webp)](https://duo121.github.io/dsh-session-hub/)
 
-**[打开交互演示 ↗](https://duo121.github.io/dsh-session-hub/)** · 浏览器里的模拟工作区，无需安装 DSH。
+**[打开交互演示 ↗](https://duo121.github.io/dsh-session-hub/)** · **[观看短视频 ↗](https://duo121.github.io/dsh-session-hub/video.html)** · 浏览器里的模拟工作区，无需安装 DSH。
 
 ## V1.8 发布演示
 
