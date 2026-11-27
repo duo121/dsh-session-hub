@@ -1,53 +1,31 @@
 # dsh-session-hub
 
-<p align="center">
-  <img src="docs/screenshots/hero.webp" alt="dsh-session-hub：跨会话消息、协作专家、自动回执" width="100%">
-</p>
+让 [DSH](https://github.com/deepseek-ai) 会话互相派活，任务完成后把回复自动带回发起会话。插件提供 `session` 工具管理会话，无需修改 DSH 源码。
 
-[DSH](https://github.com/deepseek-ai) 会话中心插件：一个 `session` 工具，读会话清单、逐轮摘要、完整对话，并按 id 新建、改名、发消息、中断、归档、置顶其他会话；会话头部显示**协作专家**往来指示；消息可要求**自动回执**。
+[![项目负责人已向前端工程师派发任务，输入框准备向后端工程师发送任务。点击打开演示。](docs/screenshots/release-dispatch.webp)](https://duo121.github.io/dsh-session-hub/)
 
-无需修改 DSH 源码，安装即用。
+**[打开交互演示 ↗](https://duo121.github.io/dsh-session-hub/)** · 浏览器里的模拟工作区，无需安装 DSH。
 
-## 效果
+## 一次发布，三个会话
 
-一次跨会话协作的完整流程：**在输入框 `@` 一个会话 → 当前智能体把消息真正发过去 → 对方收到并看到来源 → 对方的回复作为回执自动带回。**
+**1. 分别发送任务。** 项目负责人 `@前端工程师` 检查发布页的状态提示，再 `@后端工程师` 核对接口响应。`@` 把会话引用插入输入框，供智能体读取上下文。智能体调用 `session` 的 `action=send` 后，任务才会进入目标会话。
 
-> 注意区分：`@` 一个会话是**读取**对方的对话快照作为上下文（只读，对方不会被唤醒）；真正把消息发过去、让对方开始干活的是 `session` 工具的 `action=send`。
+**2. 查看协作专家。** 两个任务发出后，负责人会话的头部显示「2 个协作专家」。展开列表，就能看到两人是否正在运行，也可以直接切到对应会话。
 
-### 完整流程
+![项目负责人展开协作专家列表，前端和后端工程师均在运行](docs/screenshots/release-running.webp)
 
-![跨会话协作流程](docs/screenshots/at-flow.webp)
+**3. 回到负责人会话收结果。** 两位工程师各自正常结束后，最终回复会自动回到项目负责人会话。回执上的会话引用可以点开，查看对应任务。
 
-### ① 在输入框 @ 目标会话
+![项目负责人会话收到前端和后端工程师的两条自动回执](docs/screenshots/release-receipts.webp)
 
-输入 `@` 会弹出会话选择器，选中后以会话引用的形式插入输入框。
+<details>
+<summary>查看接收方看到的消息</summary>
 
-![@ 选择会话](docs/screenshots/at-picker.webp)
+消息首行标明「来自 项目负责人」。点击引用可以跳回来源会话。
 
-### ② 消息发过去，进入对方会话
+![前端工程师收到任务，消息首行为来自项目负责人](docs/screenshots/release-receiver.webp)
 
-`session` 工具的调用与投递结果出现在会话轨迹里。
-
-![session 工具调用](docs/screenshots/tool-call.webp)
-
-### ③ 对方看到的来源标注
-
-接收方会话里，消息首行是发送方的会话引用，一眼看出不是用户本人发的。
-
-![接收方看到的来源标注](docs/screenshots/receiver-mention.webp)
-
-### ④ 头部协作专家往来指示
-
-会话头部与「N 个子智能体」并列显示「N 个协作专家」。空闲时是协作图标，有协作会话运行中时换成转圈（与 DSH 子智能体／后台任务一致，二者互斥）。
-
-<p>
-  <img src="docs/screenshots/header-idle.webp" alt="空闲态：协作图标 + 计数" width="130">
-  <img src="docs/screenshots/header-running.webp" alt="运行态：转圈 + 计数" width="130">
-</p>
-
-悬停展开往来列表：按最近往来时间倒序，每行显示方向（`→` 我发出的 / `←` 我收到的）、标题、相对时间与状态，点击跳转，归档会话保留并标注。
-
-![协作专家列表](docs/screenshots/menu-open.webp)
+</details>
 
 ## 功能
 

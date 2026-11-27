@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="在三个会话之间发送发布任务，查看协作专家与自动回执。">
+  <meta name="theme-color" content="#151517">
+  <title>跨会话协作演示 · Session Hub</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./demo.css">
+  <script src="./demo.js" type="module"></script>
+</head>
+<body>
+  <main class="page">
+    <header class="page-header">
+      <div><h1>Session Hub</h1><span>交互演示</span></div>
+      <a href="https://github.com/duo121/dsh-session-hub">GitHub ↗</a>
+    </header>
+    <section class="workspace" id="workspace" aria-label="跨会话协作演示">
+      <aside class="sidebar" aria-label="会话列表">
+        <div class="sidebar-brand"><strong>DSH</strong> <span>SESSION HUB</span></div>
+        <p class="sidebar-label">工作区</p>
+        <h2 class="project"><span aria-hidden="true">▱</span> 新版发布</h2>
+        <div class="session-list" id="sessions"></div>
+        <button type="button" class="reset-button" id="reset" disabled><span aria-hidden="true">↺</span> 重新演示</button>
+      </aside>
+      <section class="conversation" aria-label="当前会话">
+        <header class="conversation-header">
+          <h2 id="conversation-title">项目负责人</h2>
+          <span class="mode">◈ 标准模式</span>
+          <div class="collaboration" id="collaboration" hidden>
+            <button class="expert-toggle" id="experts" type="button" aria-expanded="false" aria-controls="expert-panel"></button>
+            <div class="expert-panel" id="expert-panel" hidden></div>
+          </div>
+        </header>
+        <nav class="view-tabs" aria-label="会话视图">
+          <button type="button" data-view="chat" aria-pressed="true">对话</button>
+          <button type="button" data-view="trace" aria-pressed="false">轨迹</button>
+        </nav>
+        <div class="transcript" id="transcript" role="region" aria-label="会话消息" tabindex="0"></div>
+        <div class="composer-slot" id="composer"></div>
+      </section>
+    </section>
+    <p class="page-footer">模拟会话 · 选择前端或后端工程师，点击发送，再打开会话头部的协作专家列表。</p>
+    <p class="sr-only" id="announcement" role="status"></p>
+    <noscript><p>启用 JavaScript 后即可发送任务并查看回执。</p></noscript>
+  </main>
+</body>
+</html>
