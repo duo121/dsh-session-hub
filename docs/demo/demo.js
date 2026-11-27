@@ -32,12 +32,14 @@ function reset() {
   state = {
     active: 'lead', draft: 'frontend', pickerOpen: false, expertsOpen: false, view: 'chat', events: [],
     tasks: Object.fromEntries(engineers.map(({ id }) => [id, 'ready'])),
+    unread: new Set(),
   };
   render();
 }
 
 function navigate(id) {
   state.active = id;
+  state.unread.delete(id);
   state.view = 'chat';
   state.expertsOpen = false;
   state.pickerOpen = false;
@@ -119,7 +121,23 @@ function renderTranscript() {
   ui.transcript.innerHTML = `<div class="thread">${markup}</div>`;
 }
 
-function renderComposer() {
+function nextStep() {
+  const { active, draft, tasks, unread, pickerOpen } = state;
+  if (active !== 'lead') {
+    const status = tasks[active];
+    if (status === 'done') return { session: 'lead', label: '查看回执' };
+    if (status === 'ready') return { session: 'lead', label: '去派发任务' };
+    return {};
+  }
+
+  const [pendingVisit] = unread;
+  if (pendingVisit) return { session: pendingVisit, label: '查看任务' };
+  if (draft && !pickerOpen) return { action: 'send', label: `发送给${byId[draft].name}` };
+  if (engineers.every(({ id }) => tasks[id] === 'done')) return { action: 'replay', label: '再演示一次' };
+  return {};
+}
+
+function renderComposer(step = nextStep()) {
   const { active, draft, pickerOpen, tasks } = state;
   const person = active === 'lead' && draft ? byId[draft] : null;
   const picker = person && pickerOpen ? `
@@ -128,18 +146,30 @@ function renderComposer() {
   const input = person
     ? `<p class="draft"><span class="mention">${icon.chat}${person.name}</span> ${person.request}</p>`
     : `<p class="placeholder">${active === 'lead' ? '两个任务均已发送' : '来自项目负责人的任务会显示在上方'}</p>`;
+  const replay = step.action === 'replay';
+  const action = replay ? 'replay' : 'send';
+  const actionName = replay ? step.label : '发送';
+  const highlighted = step.action === action;
   ui.composer.innerHTML = `${picker}<div class="composer">${input}<div class="composer-bar">
     <div class="composer-tools"><button type="button" class="at-button" data-at data-focus="at" aria-label="@ 引用会话" aria-expanded="${pickerOpen}" ${person ? '' : 'disabled'}>@</button><span>演示模式</span></div>
-    <button class="send-button" type="button" data-send data-focus="send" aria-label="发送" title="发送" ${person ? '' : 'disabled'}>${icon.send}</button>
+    <button class="send-button${highlighted ? ' is-guided' : ''}" type="button" data-${action} data-focus="${action}" aria-label="${actionName}" title="${actionName}" ${person || replay ? '' : 'disabled'}>
+      ${highlighted ? `<span class="guide-label" aria-hidden="true">${step.label}</span>` : ''}
+      <span class="send-icon">${replay ? '<span aria-hidden="true">↺</span>' : icon.send}</span>
+    </button>
   </div></div>`;
 }
 
 function render({ bottom = false } = {}) {
   const focus = document.activeElement?.dataset.focus;
-  ui.sessions.innerHTML = people.map(({ id, name }) => `
-    <button type="button" class="session" data-session="${id}" data-focus="session-${id}" ${state.active === id ? 'aria-current="true"' : ''}>
-      <span>${name}</span>${state.tasks[id] === 'running' ? `<span class="session-status" aria-label="运行中">${spinner(true)}</span>` : ''}
-    </button>`).join('');
+  const step = nextStep();
+  ui.sessions.innerHTML = people.map(({ id, name }) => {
+    const guided = step.session === id;
+    const running = state.tasks[id] === 'running';
+    const status = guided ? step.label : running ? '运行中' : '';
+    return `<button type="button" class="session${guided ? ' is-guided' : ''}" data-session="${id}" data-focus="session-${id}" ${state.active === id ? 'aria-current="true"' : ''}>
+      <span>${name}</span><span class="session-status">${running ? spinner(true) : guided ? '<span class="indicator next" aria-hidden="true"></span>' : ''}${status}</span>
+    </button>`;
+  }).join('');
   ui['conversation-title'].textContent = byId[state.active].name;
   for (const button of ui.workspace.querySelectorAll('[data-view]')) {
     button.setAttribute('aria-pressed', String(button.dataset.view === state.view));
@@ -147,29 +177,33 @@ function render({ bottom = false } = {}) {
   ui.reset.disabled = state.events.length === 0 && state.active === 'lead' && !state.pickerOpen && state.draft === 'frontend';
   renderExperts();
   renderTranscript();
-  renderComposer();
+  renderComposer(step);
   if (focus) ui.workspace.querySelector(`[data-focus="${focus}"]:not(:disabled)`)?.focus({ preventScroll: true });
   if (bottom) ui.transcript.scrollTop = ui.transcript.scrollHeight;
 }
 
-function send() {
+function send(fromKeyboard) {
   const id = state.draft;
   if (state.active !== 'lead' || state.tasks[id] !== 'ready') return;
   const person = byId[id];
   state.tasks[id] = 'running';
   state.events.push({ type: 'send', id });
+  state.unread.add(id);
   state.draft = engineers.find((entry) => state.tasks[entry.id] === 'ready')?.id ?? null;
   state.pickerOpen = false;
   state.view = 'chat';
   render({ bottom: true });
-  (ui.composer.querySelector('[data-send]:enabled') ?? ui.experts).focus({ preventScroll: true });
-  ui.announcement.textContent = `已向${person.name}发送任务。`;
+  const destination = nextStep().session;
+  if (fromKeyboard && destination) ui.sessions.querySelector(`[data-session="${destination}"]`).focus();
+  ui.announcement.textContent = `已向${person.name}发送任务。选择会话列表中的${person.name}查看任务。`;
   const timer = setTimeout(() => {
     timers.delete(id);
     state.tasks[id] = 'done';
     state.events.push({ type: 'receipt', id });
     render({ bottom: state.active === 'lead' || state.active === id });
-    ui.announcement.textContent = `收到${person.name}的自动回执。`;
+    ui.announcement.textContent = state.active === 'lead'
+      ? `收到${person.name}的自动回执。`
+      : `${person.name}已完成任务，回执已发回项目负责人。`;
   }, person.duration);
   timers.set(id, timer);
 }
@@ -205,15 +239,15 @@ document.addEventListener('click', (event) => {
     render();
     ui.composer.querySelector('[data-send]').focus({ preventScroll: true });
   }
-  if ('send' in button.dataset) send();
+  if ('send' in button.dataset) send(event.detail === 0);
+  if ('replay' in button.dataset || button === ui.reset) {
+    reset();
+    ui.announcement.textContent = '演示已重置。发送按钮已准备好。';
+    ui.composer.querySelector('[data-send]').focus({ preventScroll: true });
+  }
   if (button === ui.experts) {
     state.expertsOpen = !state.expertsOpen;
     renderExperts();
-  }
-  if (button === ui.reset) {
-    reset();
-    ui.announcement.textContent = '演示已重置。';
-    ui.composer.querySelector('[data-send]').focus({ preventScroll: true });
   }
 });
 

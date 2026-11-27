@@ -41,7 +41,12 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px s
 .session-list { display: grid; gap: 2px; }
 .session { display: flex; align-items: center; justify-content: space-between; min-height: 32px; border-radius: 6px; text-align: left; padding: 4px 7px 4px 21px; font-size: 13px; white-space: nowrap; }
 .session[aria-current], .session:hover { background: #303032; }
-.session-status { display: flex; }
+.session-status { display: flex; align-items: center; gap: 4px; color: var(--subtle); font-size: 10px; }
+.session.is-guided { background: #252f41; box-shadow: inset 0 0 0 1px #5875a4; }
+.session.is-guided:hover { background: #2e3c55; }
+.session.is-guided .session-status { color: #b4ccf8; }
+.session.is-guided .indicator { animation: spin .92s linear infinite, guide-pulse 1.1s ease-out 3; }
+.session.is-guided .indicator.next { width: 7px; height: 7px; background: var(--blue); animation: guide-pulse 1.1s ease-out 3; }
 .reset-button { margin-top: auto; align-self: flex-start; border-radius: 6px; min-height: 32px; padding: 4px 8px; color: var(--muted); font-size: 12px; }
 .reset-button:hover:not(:disabled) { background: #303032; }
 .reset-button:disabled { opacity: .72; }
@@ -102,9 +107,17 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px s
 .at-button, .send-button { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 50%; }
 .at-button { background: #353537; font-size: 17px; }
 .at-button:hover:not(:disabled), .at-button[aria-expanded=true] { background: #454549; }
-.send-button { background: var(--blue); color: #141c2d; }
+.send-button { position: relative; padding: 0; background: var(--blue); color: #141c2d; }
 .send-button:hover:not(:disabled) { background: #a3c4ff; }
+.send-icon { display: grid; place-items: center; font-size: 22px; line-height: 1; }
 .send-button .icon { width: 21px; height: 21px; stroke-width: 2; }
+.send-button.is-guided { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px #7299db; }
+.send-button.is-guided::after { content: ''; position: absolute; inset: -4px; border-radius: inherit; pointer-events: none; animation: guide-pulse 1.1s ease-out 3; }
+.guide-label { position: absolute; right: calc(100% + 10px); top: 50%; translate: 0 -50%; padding: 3px 6px; border-radius: 5px; background: #293850; color: #d0e0ff; font-size: 11px; white-space: nowrap; }
+@keyframes guide-pulse {
+  from { box-shadow: 0 0 0 0 #7aaaff90; }
+  to { box-shadow: 0 0 0 7px #7aaaff00; }
+}
 .at-button:disabled, .send-button:disabled { opacity: .45; }
 .picker { position: absolute; inset: auto 12px calc(100% - 4px); z-index: 2; padding: 4px; border: 1px solid #3a3a3e; border-radius: 11px; background: #252527; box-shadow: 0 6px 18px #0006; }
 .picker p { padding: 5px 8px; color: var(--muted); font-size: 12px; }
@@ -119,7 +132,8 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px s
   .sidebar-brand { height: 35px; }
   .sidebar-label, .project { display: none; }
   .session-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .session { justify-content: center; gap: 5px; padding: 3px; }
+  .session { flex-direction: column; justify-content: center; gap: 2px; min-height: 43px; padding: 3px; }
+  .session-status { min-height: 12px; }
   .reset-button { position: absolute; top: 2px; right: 7px; }
   .conversation { height: 461px; }
   .conversation-header { gap: 7px; padding-inline: 10px; }
