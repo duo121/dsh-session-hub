@@ -2,63 +2,39 @@
 
 让 [DSH](https://github.com/deepseek-ai) 会话互相派活，任务完成后把回复自动带回发起会话。插件提供 `session` 工具管理会话，无需修改 DSH 源码。
 
-[![项目负责人已向前端工程师派发任务，输入框准备向后端工程师发送任务。点击打开演示。](docs/screenshots/release-dispatch.webp)](https://duo121.github.io/dsh-session-hub/)
+[![项目负责人从协作专家列表查看前后端负责人的任务状态。点击打开演示。](docs/screenshots/release-running.webp)](https://duo121.github.io/dsh-session-hub/)
 
 **[打开交互演示 ↗](https://duo121.github.io/dsh-session-hub/)** · 浏览器里的模拟工作区，无需安装 DSH。
 
 ## V1.8 发布演示
 
-演示默认打开「协作派发」。侧栏底部可以切换发布阶段，项目负责人会话会保留之前的消息和回执。每个阶段都从同一个输入框发送预设指令，点击 `/` 可以选择其他指令。工具调用可展开查看。
+点左侧「新会话」并跟随箭头，或点右上角「自动播放」看完整流程。播放可随时暂停，手动操作后也可以从当前步骤继续播放。
 
-| 章节 | 可以体验的操作 |
-| --- | --- |
-| 准备会话 | 新建发布记录会话，添加版本号并置顶。会话标题和顺序会在侧栏更新。 |
-| 协作派发 | 向前后端工程师分别派发任务，从自动展开的协作专家列表进入目标会话，再回到负责人处收取回执。 |
-| 汇总进展 | 列出工作区会话，读取两位工程师的逐轮摘要或完整对话，汇总发布检查结果。 |
-| 发布收尾 | 归档和恢复已完成的会话，取消置顶发布记录，并体验中断测试后不产生回执的分支。 |
+1. **创建会话。** 点「新会话」进入空白对话，发送指令让 AI 调用 `session · rename` 改名为「项目负责人」。接着让 AI 创建前端和后端负责人，并置顶项目负责人会话。
+2. **派发并收回执。** 用 `@` 引用前端负责人后发送任务。协作专家列表自动展开，点击可查看进度。后端发现检查范围有变时，由 AI 中断旧任务，再派发新版接口检查。两项完成的检查各回执一次。
+3. **复核并收尾。** 让 AI 归档再恢复前端会话，列出会话并读取摘要和完整对话。汇总后可以在「轨迹」查看工具参数，然后让 AI 取消置顶、归档前后端会话。项目负责人会话保留派发记录与回执。
 
-### 一次发布，三个协作会话
-
-**1. 分别发送任务。** 项目负责人 `@前端工程师` 检查发布页的状态提示，再 `@后端工程师` 核对接口响应。`@` 把会话引用插入输入框，供智能体读取上下文。智能体调用 `session` 的 `action=send` 后，任务才会进入目标会话。
-
-**2. 查看协作专家。** 演示里每次发送后，头部的协作专家列表会自动展开。两个任务发出后，负责人会话显示「2 个协作专家」。列表里可以查看各自的运行状态，点击名字就能切到对应会话。
-
-![项目负责人展开协作专家列表，前端和后端工程师均在运行](docs/screenshots/release-running.webp)
-
-**3. 回到负责人会话收结果。** 两位工程师各自正常结束后，最终回复会自动回到项目负责人会话。回执上的会话引用可以点开，查看对应任务。
-
-![项目负责人会话收到前端和后端工程师的两条自动回执](docs/screenshots/release-receipts.webp)
+![项目负责人收到两条自动回执，准备读取会话记录](docs/screenshots/release-receipts.webp)
 
 <details>
-<summary>查看接收方看到的消息</summary>
+<summary>查看从新建到归档的演示截图</summary>
 
-消息首行标明「来自 项目负责人」。点击引用可以跳回来源会话。
+![入口可手动新建空白会话或自动播放](docs/screenshots/release-start.webp)
 
-![前端工程师收到任务，消息首行为来自项目负责人](docs/screenshots/release-receiver.webp)
+![发送自然语言消息后，AI 调用 session rename 并更新会话标题](docs/screenshots/release-rename.webp)
 
-</details>
+![新建前后端负责人后，项目负责人置顶，图标位于会话行右侧](docs/screenshots/release-prepare.webp)
 
-<details>
-<summary>查看发布准备、进展汇总和收尾截图</summary>
+![前端负责人收到来源为项目负责人的任务](docs/screenshots/release-receiver.webp)
 
-**准备会话。** 新建、改名并置顶发布记录，侧栏同步显示新标题和顺序。
-
-![置顶后的 V1.8 发布记录与 session pin 工具轨迹](docs/screenshots/release-prepare.webp)
-
-**汇总进展。** 使用 `session · read` 读取两位工程师的对话，再汇总前端页面检查与后端接口联调结果。
-
-![逐轮回查后生成发布检查摘要](docs/screenshots/release-summary.webp)
-
-**发布收尾。** 归档后可以恢复会话。被中断的测试轮次没有正常完成，因此不产生自动回执。
-
-![发布收尾场景展示 session interrupt 和回执状态](docs/screenshots/release-close.webp)
+![发布结果已汇总，两个协作会话已归档](docs/screenshots/release-close.webp)
 
 </details>
 
 <details>
 <summary>查看原版 DeepSeek Harness 界面参考</summary>
 
-演示的品牌区、会话布局、协作专家列表和引用选择器分别参考了原版截图。[工作区与输入框](docs/screenshots/harness-reference.webp) · [会话与工具调用](docs/screenshots/tool-call.webp) · [协作专家列表](docs/screenshots/menu-open.webp) · [会话引用选择器](docs/screenshots/at-picker.webp)
+演示的品牌区、会话布局、置顶图标、协作专家列表和引用选择器均参考了原版界面截图。[工作区与输入框](docs/screenshots/harness-reference.webp) · [置顶会话](docs/screenshots/harness-pin-reference.webp) · [会话与工具调用](docs/screenshots/tool-call.webp) · [协作专家列表](docs/screenshots/menu-open.webp) · [会话引用选择器](docs/screenshots/at-picker.webp)
 
 ![隔离实例中的 DeepSeek Harness 工作区](docs/screenshots/harness-reference.webp)
 

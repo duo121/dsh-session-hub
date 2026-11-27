@@ -1,77 +1,61 @@
-export const releaseNotes = { id: 'session-release-notes', draftTitle: '发布记录', title: 'V1.8 发布记录' };
-const regression = { id: 'session-regression', name: 'V1.8 回归测试' };
+export const engineers = [
+  {
+    id: 'frontend', name: '前端负责人', duration: 3900,
+    request: '请检查新版发布页的加载、空数据和失败重试，完成后告诉我结果。',
+    progress: '我检查了慢速网络、空数据和失败重试。',
+    result: '加载、空数据和失败重试均已验证，移动端布局正常。',
+  },
+  {
+    id: 'backend', name: '后端负责人', duration: 4600,
+    request: '请核对发布状态接口的成功响应和错误码，完成后告诉我联调结果。',
+    progress: '我核对了成功、找不到版本和服务暂时不可用三种响应。',
+    result: '发布状态接口已联调，成功响应以及 404、503 错误码均符合约定。',
+  },
+];
 
-export function createReleaseState() {
-  return { record: null, pinned: false, archived: false, listed: false, read: new Set(), reported: false, test: 'ready' };
+const toolId = (id) => `session-${id}`;
+
+function command(label, prompt, args, result, effect) {
+  return { kind: 'send', label, prompt, args, result, effect };
 }
 
-function command(id, label, prompt, action, args, result, apply) {
-  return { id, label, prompt, args: { action, ...args }, result, apply };
-}
-
-export function releaseCommands(chapter, release, engineers, tasks, hasDispatches) {
-  const make = command;
-  if (chapter === 'prepare') {
-    if (!release.record) return [make('create', '新建发布记录', `请新建一个叫「${releaseNotes.draftTitle}」的会话。`,
-      'create', { title: releaseNotes.draftTitle }, '已新建「发布记录」，可以在工作区找到它。',
-      () => { release.record = releaseNotes.draftTitle; })];
-    if (release.record !== releaseNotes.title) return [make('rename', '添加版本号', `把「${release.record}」改名为「${releaseNotes.title}」。`,
-      'rename', { session_id: releaseNotes.id, content: releaseNotes.title }, `已改名为「${releaseNotes.title}」。`,
-      () => { release.record = releaseNotes.title; })];
-    if (!release.pinned) return [make('pin', '置顶发布记录', `请置顶「${release.record}」，发布时方便找到。`,
-      'pin', { session_id: releaseNotes.id }, '已置顶发布记录。', () => { release.pinned = true; })];
-    return [];
-  }
-
-  if (chapter === 'summarize') {
-    const available = engineers.filter(({ id }) => id !== 'frontend' || !release.archived);
-    if (!release.listed) {
-      const names = ['项目负责人', ...available.map(({ name }) => name)];
-      if (release.record) names.push(release.record);
-      return [make('list', '列出会话', '请列出发布工作区的会话。', 'read', {}, names.join('\n'),
-        () => { release.listed = true; })];
-    }
-    available.sort((a, b) => Number(release.read.has(a.id)) - Number(release.read.has(b.id)));
-    const options = available.flatMap(({ id, name, request, progress, result }) => {
-      const completed = !hasDispatches || tasks[id] === 'done';
-      return [false, true].map((dialog) => {
-        const modeName = dialog ? '完整对话' : '逐轮摘要';
-        const args = { session_id: `session-${id}`, ...(dialog && { mode: 'dialog' }) };
-        let output = `${name}尚未完成检查。回执发回后可重新读取。`;
-        if (completed) output = dialog
-          ? `用户：${request}\n助手：${progress}\n助手：${result}`
-          : `问：${request}\n答：${result}`;
-        return make(`${id}-${dialog ? 'dialog' : 'digest'}`, `${name} · ${modeName}`,
-          `请读取「${name}」的${modeName}。`, 'read', args, output,
-          () => { if (completed) release.read.add(id); });
-      });
-    });
-    if (release.read.size === engineers.length && !release.reported) {
-      options.unshift(make('report', '汇总发布检查', '请汇总两位工程师的发布检查结果。', null, {},
-        `V1.8 发布检查已完成。${engineers.map(({ result }) => result).join('')}`,
-        () => { release.reported = true; }));
-    }
-    return options;
-  }
-
-  if (chapter === 'close') {
-    const options = [];
-    if (release.archived) {
-      options.push(make('restore', '恢复前端会话', '还需要查看检查记录，请恢复前端工程师的会话。',
-        'unarchive', { session_id: 'session-frontend' }, '已恢复「前端工程师」会话。', () => { release.archived = false; }));
-    } else if (!hasDispatches || tasks.frontend === 'done') {
-      options.push(make('archive', '归档前端会话', '检查已完成，请归档前端工程师的会话。',
-        'archive', { session_id: 'session-frontend' }, '已归档「前端工程师」。对话记录已保留。', () => { release.archived = true; }));
-    }
-    if (release.pinned) options.push(make('unpin', '取消置顶', `发布已结束，请取消置顶「${release.record}」。`,
-      'unpin', { session_id: releaseNotes.id }, '已取消置顶，发布记录仍保留在工作区。', () => { release.pinned = false; }));
-    if (release.test === 'ready') options.push(make('start-test', '启动回归测试', '请再跑一次 V1.8 发布页回归测试，并在结束后回执。',
-      'send', { session_id: regression.id, receipt: true, content: '请再跑一次 V1.8 发布页回归测试。' },
-      '已投递到「V1.8 回归测试」。该测试正在运行。', () => { release.test = 'running'; }));
-    if (release.test === 'running') options.unshift(make('interrupt', '中断测试', '请中断「V1.8 回归测试」当前这一轮。',
-      'interrupt', { session_id: regression.id }, '已中断回归测试。这一轮没有完成，因此不会产生自动回执。',
-      () => { release.test = 'interrupted'; }));
-    return options;
-  }
-  return [];
+export function releaseSteps() {
+  return [
+    { kind: 'new', label: '新建空白会话' },
+    command('让 AI 重命名会话', '请把这个空白会话改名为「项目负责人」。',
+      { action: 'rename', session_id: 'session-lead', content: '项目负责人' }, '已把当前会话重命名为「项目负责人」。', { rename: '项目负责人' }),
+    ...engineers.map(({ id, name }) => command(`创建${name}`, `请新建一个叫「${name}」的会话。`,
+      { action: 'create', title: name }, `已创建会话「${name}」。`, { create: id })),
+    command('置顶当前会话', '请把这个会话置顶，方便回来看发布进展。',
+      { action: 'pin', session_id: toolId('lead') }, '已置顶当前会话。', { pin: true }),
+    ...engineers.flatMap((person) => [
+      ...(person.id === 'backend' ? [
+        { kind: 'send', label: '派发接口检查', prompt: '请先核对旧版发布状态接口的响应。', dispatch: person.id, superseded: true },
+        command('中断旧版检查', '刚确认这次发布只验新版接口。请中断后端负责人当前正在跑的旧版检查。',
+          { action: 'interrupt', session_id: toolId(person.id) }, '已中断旧版接口检查，这一轮不会发回自动回执。', { interrupt: person.id }),
+      ] : []),
+      { kind: 'send', label: `派发给${person.name}`, prompt: person.request, dispatch: person.id, pick: person.id === 'frontend' },
+      { kind: 'visit', label: `查看${person.name}的任务`, session: person.id },
+      { kind: 'return', label: '返回查看回执', session: 'lead', waitFor: person.id },
+    ]),
+    command('归档已完成的前端会话', '前端检查已完成，先把前端负责人归档。',
+      { action: 'archive', session_id: toolId('frontend') }, '已归档「前端负责人」，对话记录已保留。', { archive: 'frontend' }),
+    command('恢复前端会话以复核', '汇总前还要核对前端的检查记录，请恢复前端负责人会话。',
+      { action: 'unarchive', session_id: toolId('frontend') }, '已恢复「前端负责人」，现在可以读取会话记录。', { unarchive: 'frontend' }),
+    command('查看会话清单', '请列出当前工作区的会话，确认两位负责人均已完成任务。',
+      { action: 'read' }, '前端负责人、后端负责人均已完成任务。'),
+    ...engineers.map((person, index) => command(`读取${person.name}的记录`,
+      `请读取「${person.name}」的${index ? '完整对话' : '逐轮摘要'}。`,
+      { action: 'read', session_id: toolId(person.id), ...(index ? { mode: 'dialog' } : {}) },
+      index ? `用户：${person.request}\n助手：${person.progress}\n助手：${person.result}` : `任务：${person.request}\n结果：${person.result}`)),
+    command('汇总发布检查', '请汇总两位负责人的检查结果。', null,
+      `V1.8 发布检查已完成。${engineers.map(({ result }) => result).join('')}`),
+    { kind: 'view', view: 'trace', label: '查看工具调用轨迹' },
+    { kind: 'view', view: 'chat', label: '返回对话收尾' },
+    command('取消置顶', '检查已汇总，请取消置顶当前会话。',
+      { action: 'unpin', session_id: toolId('lead') }, '已取消置顶，发布记录仍保留在工作区。', { pin: false }),
+    ...engineers.map(({ id, name }) => command(`归档${name}`, `检查已完成，请归档「${name}」的会话。`,
+      { action: 'archive', session_id: toolId(id) }, `已归档「${name}」，对话记录已保留。`, { archive: id })),
+    { kind: 'done', label: '再演示一次' },
+  ];
 }
