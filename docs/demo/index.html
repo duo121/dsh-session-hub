@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="在模拟的 DeepSeek Harness 工作区准备发布会话、派发任务、汇总回执并整理会话。">
   <meta name="theme-color" content="#151517">
   <title>跨会话协作演示 · Session Hub</title>
@@ -14,10 +14,16 @@
   <main class="page">
     <h1 class="sr-only">Session Hub · V1.8 发布演示</h1>
     <section class="workspace" id="workspace" aria-label="Session Hub 演示工作区">
-      <aside class="sidebar" aria-label="会话列表">
-        <div class="sidebar-brand" role="img" aria-label="DeepSeek Harness">
-          <img src="./harness-mark.svg" width="24" height="18" alt="">
-          <img src="./harness-wordmark.svg" width="156" height="24" alt="">
+      <div class="drawer-backdrop" id="drawer-backdrop" aria-hidden="true"></div>
+      <aside class="sidebar" id="sidebar" aria-label="会话列表">
+        <div class="sidebar-top">
+          <div class="sidebar-brand" role="img" aria-label="DeepSeek Harness">
+            <img src="./harness-mark.svg" width="24" height="18" alt="">
+            <img src="./harness-wordmark.svg" width="156" height="24" alt="">
+          </div>
+          <button type="button" class="mobile-control" id="close-drawer" aria-label="关闭会话列表">
+            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>
+          </button>
         </div>
         <button type="button" class="new-session" id="new-session" data-action="new">
           <svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4.8 14.5a6.3 6.3 0 1 1 3 1.6L4 17zM10 7v6m-3-3h6"/></svg> 新会话
@@ -34,8 +40,11 @@
           <a href="https://github.com/duo121/dsh-session-hub">GitHub ↗</a>
         </div>
       </aside>
-      <section class="conversation" aria-label="当前会话">
+      <section class="conversation" id="conversation" aria-label="当前会话">
         <header class="conversation-header">
+          <button type="button" class="mobile-control" id="open-drawer" aria-label="打开会话列表" aria-expanded="false" aria-controls="sidebar">
+            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M8 4v12"/></svg>
+          </button>
           <h2 id="conversation-title">新版发布</h2>
           <span class="mode">◈ 标准模式</span>
           <div class="collaboration" id="collaboration" hidden>

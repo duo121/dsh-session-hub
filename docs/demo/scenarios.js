@@ -47,11 +47,10 @@ export function releaseSteps() {
       prompt: '请查看工作区会话，读取前端负责人的逐轮摘要和后端负责人的完整对话，然后汇总本次发布检查。',
       calls: [
         {
-          label: '工作区会话清单', args: { action: 'read' },
+          args: { action: 'read' },
           output: engineers.map(({ id, name }) => `${name} · ${toolId(id)} · 已完成检查`).join('\n'),
         },
         ...engineers.map((person, index) => ({
-          label: `${person.name} · ${index ? '完整对话' : '逐轮摘要'}`,
           args: { action: 'read', session_id: toolId(person.id), ...(index ? { mode: 'dialog' } : {}) },
           output: index ? `用户：${person.request}\n助手：${person.progress}\n助手：${person.result}` : `任务：${person.request}\n结果：${person.result}`,
         })),

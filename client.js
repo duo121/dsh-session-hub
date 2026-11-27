@@ -13,6 +13,7 @@ window.__ModuleLoader__.load({
 
 		/** 头部插槽名：与 ui-subagent / ui-jobs 注入的是同一个。 */
 		const SLOT = 'conversation.session.header.actions';
+		const TOOL_SLOT = 'tool.call.toolview';
 
 		/** locale 命名空间。 */
 		const NS = 'session-hub';
@@ -52,6 +53,29 @@ window.__ModuleLoader__.load({
 			'row.lastExchange.years': '{n} 年',
 			'dir.out': '我发出的',
 			'dir.in': '我收到的',
+			'tool.send': '向「{title}」发送消息',
+			'tool.create': '新建会话「{title}」',
+			'tool.createUntitled': '新建会话',
+			'tool.rename': '将会话改名为「{newTitle}」',
+			'tool.list': '查看会话清单',
+			'tool.listArchived': '查看已归档会话',
+			'tool.listAll': '查看全部会话',
+			'tool.listSearch': '{scope}（筛选「{query}」）',
+			'tool.readSummaries': '读取「{title}」的逐轮摘要',
+			'tool.readText': '读取「{title}」的对话文本',
+			'tool.interrupt': '中断「{title}」的当前任务',
+			'tool.archive': '归档「{title}」',
+			'tool.unarchive': '恢复「{title}」',
+			'tool.pin': '置顶「{title}」',
+			'tool.unpin': '取消置顶「{title}」',
+			'tool.unknownTarget': '未知会话',
+			'tool.preparing': '正在准备',
+			'tool.running': '正在运行',
+			'tool.error': '执行失败',
+			'tool.stopped': '已中断',
+			'tool.input': '输入',
+			'tool.output': '输出',
+			'tool.inspect': '查看轨迹',
 		};
 		const en = {
 			'collaborators.one': '{count} collaborator',
@@ -74,6 +98,29 @@ window.__ModuleLoader__.load({
 			'row.lastExchange.years': '{n} y',
 			'dir.out': 'sent',
 			'dir.in': 'received',
+			'tool.send': 'Send a message to “{title}”',
+			'tool.create': 'Create session “{title}”',
+			'tool.createUntitled': 'Create session',
+			'tool.rename': 'Rename session to “{newTitle}”',
+			'tool.list': 'List sessions',
+			'tool.listArchived': 'List archived sessions',
+			'tool.listAll': 'List all sessions',
+			'tool.listSearch': '{scope} matching “{query}”',
+			'tool.readSummaries': 'Read turn summaries for “{title}”',
+			'tool.readText': 'Read conversation text for “{title}”',
+			'tool.interrupt': 'Interrupt the current task in “{title}”',
+			'tool.archive': 'Archive “{title}”',
+			'tool.unarchive': 'Unarchive “{title}”',
+			'tool.pin': 'Pin “{title}”',
+			'tool.unpin': 'Unpin “{title}”',
+			'tool.unknownTarget': 'Unknown session',
+			'tool.preparing': 'Preparing',
+			'tool.running': 'Running',
+			'tool.error': 'Failed',
+			'tool.stopped': 'Interrupted',
+			'tool.input': 'IN',
+			'tool.output': 'OUT',
+			'tool.inspect': 'Inspect trajectory',
 		};
 
 		const css =
@@ -83,8 +130,6 @@ window.__ModuleLoader__.load({
 			'.shub_trigger{border-radius:var(--dsw-radius-sm);min-height:28px;color:var(--dsw-alias-label-tertiary);cursor:pointer;background:0 0;border:0;align-items:center;gap:4px;padding:3px 2px;font-size:12px;line-height:18px;display:inline-flex}' +
 			'.shub_trigger:focus-visible{color:var(--dsw-alias-label-primary)}' +
 			'@media (hover:hover){.shub_trigger:hover{color:var(--dsw-alias-label-primary)}}' +
-			'.shub_trigger svg{transition:transform .12s}' +
-			'.shub_triggerOpen{transform:rotate(180deg)}' +
 			'.shub_menu{z-index:100;box-sizing:border-box;border-radius:var(--dsw-radius-lg);--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2);--dsw-elevation-stroke-color:var(--dsw-alias-border-l1);width:336px;max-width:min(400px,100vw - 32px);max-height:min(560px,100vh - 140px);box-shadow:var(--dsw-elevation-prominent);flex-direction:column;padding:4px;display:flex;position:fixed;overflow:hidden}' +
 			'.shub_menu:before{content:"";z-index:-1;border-radius:inherit;background:var(--dsw-specific-menu);backdrop-filter:var(--dsw-menu-backdrop-filter);position:absolute;inset:0}' +
 			'.shub_menuBody{flex-direction:column;flex:auto;min-height:0;display:flex;overflow:auto}' +
@@ -105,6 +150,30 @@ window.__ModuleLoader__.load({
 			tag.textContent = css;
 			document.head.appendChild(tag);
 		}
+
+		// The keyed view replaces the whole row in rc.5. Keep its extra styles local
+		// and let the shared DisclosureRow own the leading icon and interaction.
+		const toolCss = `
+			.shub_toolRoot{display:flex;flex-direction:column}
+			.shub_toolTitle{font-weight:400}
+			.shub_toolSummary{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--dsh-content-font-size-secondary,13px)}
+			.shub_toolRoot[data-state=error] .shub_toolSummary,.shub_toolOutput[data-error]{color:var(--dsw-alias-state-error-primary)}
+			.shub_toolRoot[data-state=stopped] .shub_toolSummary{color:var(--dsw-alias-state-warn-label)}
+			.shub_toolStatus{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+			.shub_toolBody,.shub_toolIo{display:flex;flex-direction:column}
+			.shub_toolSummaryExpanded{white-space:normal;overflow-wrap:anywhere}
+			.shub_toolIo{margin:4px 0 4px 4px;border:0.5px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg);background:var(--dsw-alias-markdown-code-block);font:var(--dsw-font-markdown-code-block-small)}
+			.shub_toolSection{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:14px;align-items:baseline;padding:12px 16px;max-height:150px;overflow:auto}
+			.shub_toolSection+.shub_toolSection{border-top:0.5px solid var(--dsw-alias-border-l2)}
+			.shub_toolIoLabel{position:sticky;top:0;align-self:start;color:var(--dsw-alias-label-caption)}
+			.shub_toolInput,.shub_toolOutput{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--dsw-alias-label-secondary)}
+			.shub_toolInspect{display:inline-flex;align-self:flex-start;align-items:center;gap:4px;margin:4px 0 2px 4px;padding:2px 8px;border:0.5px solid var(--dsw-alias-border-l3);border-radius:999px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-secondary);font-size:11px;line-height:16px;cursor:pointer}
+			@media (hover:hover){
+				.shub_toolInspect{opacity:0;transition:opacity 100ms ease}
+				.shub_toolRoot:hover .shub_toolInspect,.shub_toolInspect:focus-visible{opacity:1}
+				.shub_toolInspect:hover{background:var(--dsw-alias-interactive-bg-hover-solid);color:var(--dsw-alias-label-primary)}
+			}
+		`;
 
 		/**
 		 * 把弹框放在触发器正下方，且不越出视口。
@@ -428,9 +497,6 @@ window.__ModuleLoader__.load({
 									className: 'shub_collabIcon',
 								}),
 							react_jsx_runtime.jsx('span', { children: countText }),
-							react_jsx_runtime.jsx(primitives.IconChevronDownOutlineRegular, {
-								className: open ? 'shub_triggerOpen' : undefined,
-							}),
 						],
 					}),
 					open &&
@@ -531,6 +597,153 @@ window.__ModuleLoader__.load({
 			});
 		}
 
+		function sessionToolArgs(raw) {
+			try {
+				return JSON.parse(raw);
+			} catch {
+				return undefined;
+			}
+		}
+
+		function sessionToolNonempty(value) {
+			return typeof value === 'string' ? value.trim() || undefined : undefined;
+		}
+
+		// Same published ID shape and case-sensitive prefix as the Host tool.
+		function sessionToolTargetId(value) {
+			const id = sessionToolNonempty(value)?.replace(/^session-/u, '');
+			return id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(id)
+				? id
+				: undefined;
+		}
+
+		function sessionToolSummary(args, targetId, catalogTitle, t) {
+			if (!args || typeof args !== 'object' || Array.isArray(args)) return undefined;
+			const title = targetId === undefined ? undefined : sessionToolNonempty(catalogTitle) ?? `session-${targetId.slice(0, 8)}…${targetId.slice(-4)}`;
+			switch (args.action) {
+				case 'read': {
+					const id = args.session_id;
+					if (id === undefined || id === '') {
+						const scopeKey = args.scope === 'archived' ? 'tool.listArchived' : args.scope === 'all' ? 'tool.listAll' : 'tool.list';
+						const scope = t(scopeKey);
+						const query = sessionToolNonempty(args.query);
+						return query ? t('tool.listSearch', { scope, query }) : scope;
+					}
+					if (typeof id !== 'string') return undefined;
+					// Presence of any of these fields selects the transcript branch. By
+					// contrast, max_turns only caps the digest and leaves its kind intact.
+					const transcript = [args.mode, args.turn, args.from_turn, args.to_turn].some((value) => value !== undefined);
+					return t(transcript ? 'tool.readText' : 'tool.readSummaries', {
+						title: title ?? t('tool.unknownTarget'),
+					});
+				}
+				case 'create': {
+					const name = sessionToolNonempty(args.title) ?? sessionToolNonempty(args.content);
+					return name ? t('tool.create', { title: name }) : t('tool.createUntitled');
+				}
+				case 'rename': {
+					// The catalog already reflects the result of a completed rename.
+					// Only the requested new title is known from the recorded call.
+					const newTitle = sessionToolNonempty(args.title) ?? sessionToolNonempty(args.content);
+					return targetId && newTitle ? t('tool.rename', { newTitle }) : undefined;
+				}
+				case 'send':
+					return title && sessionToolNonempty(args.content) ? t('tool.send', { title }) : undefined;
+				case 'interrupt':
+				case 'archive':
+				case 'unarchive':
+				case 'pin':
+				case 'unpin':
+					return title ? t(`tool.${args.action}`, { title }) : undefined;
+				default:
+					return undefined;
+			}
+		}
+
+		function sessionToolOutput(block) {
+			const parts = (block.content ?? []).map((part) => part.type === 'text' ? part.text : JSON.stringify(part, null, 2));
+			if (parts.length === 0 && block.error) parts.push(`${block.error.name}: ${block.error.code}`);
+			return parts.join('\n');
+		}
+
+		function SessionToolView({ phase, block, useSessions, useDisclosure, inspect, t }) {
+			const settled = phase === 'result';
+			// A preparing call has no finished argument object. In particular, a
+			// partial read's missing ID or range fields cannot establish its branch.
+			const raw = (settled ? block.call?.argsRaw : phase === 'start' ? block.argsRaw : undefined) ?? '';
+			const args = react.useMemo(() => sessionToolArgs(raw), [raw]);
+			const targetId = sessionToolTargetId(args?.session_id);
+			const lookupId = args?.action === 'rename' || args?.action === 'create' ? undefined : targetId;
+			const catalogTitle = useSessions((state) => lookupId === undefined ? undefined :
+				state?.byId?.[`session-${lookupId}`]?.title ?? state?.byId?.[lookupId]?.title);
+			const { expanded, toggle } = useDisclosure();
+			let state = phase === 'preparing' ? 'preparing' : 'running';
+			if (settled) {
+				if (block.error?.code === 'interrupted') state = 'stopped';
+				else state = block.isError || block.meta?.stopped === true ? 'error' : 'ok';
+			}
+			const output = react.useMemo(() => settled ? sessionToolOutput(block) : '', [settled, block]);
+			const failure = state === 'error' ? output.split('\n', 1)[0] : undefined;
+			const action = sessionToolSummary(args, targetId, catalogTitle, t);
+			const status = state === 'ok' ? undefined : t(`tool.${state}`);
+			const summary = failure || action || (state === 'error' || state === 'stopped' ? status : undefined);
+			const expandable = phase !== 'preparing' && (raw !== '' || output !== '');
+			const open = expanded && expandable;
+			const input = open && raw !== '' ? (args === undefined ? raw : JSON.stringify(args, null, 2)) : '';
+			const section = (label, text, outputSection = false) => react_jsx_runtime.jsxs('div', {
+				className: 'shub_toolSection',
+				children: [
+					react_jsx_runtime.jsx('span', { className: 'shub_toolIoLabel', children: t(label) }),
+					react_jsx_runtime.jsx('span', {
+						className: outputSection ? 'shub_toolOutput' : 'shub_toolInput',
+						'data-error': outputSection && state === 'error' ? '' : undefined,
+						children: text,
+					}),
+				],
+			});
+
+			return react_jsx_runtime.jsxs('div', {
+				className: 'shub_toolRoot',
+				'data-variant': 'others',
+				'data-tool': 'session',
+				'data-state': state,
+				children: [
+					status && react_jsx_runtime.jsx('span', { className: 'shub_toolStatus', children: status }),
+					react_jsx_runtime.jsx(primitives.DisclosureRow, {
+						icon: react_jsx_runtime.jsx(primitives.IconSparkleRegular, { size: 14 }),
+						title: 'session',
+						titleClassName: 'shub_toolTitle',
+						running: state === 'preparing' || state === 'running',
+						open,
+						expandable,
+						expandOnRowClick: true,
+						keepContentWhenOpen: true,
+						onToggle: toggle,
+						collapsedContent: summary ? react_jsx_runtime.jsx('span', {
+							className: open ? 'shub_toolSummary shub_toolSummaryExpanded' : 'shub_toolSummary',
+							title: summary,
+							children: react_jsx_runtime.jsx(primitives.TextShimmer, { children: `\u00a0· ${summary}` }),
+						}) : undefined,
+						children: open ? react_jsx_runtime.jsxs('div', {
+							className: 'shub_toolBody',
+							children: [
+								react_jsx_runtime.jsxs('div', {
+									className: 'shub_toolIo',
+									children: [input !== '' && section('tool.input', input), output !== '' && section('tool.output', output, true)],
+								}),
+								inspect && react_jsx_runtime.jsxs('button', {
+									type: 'button',
+									className: 'shub_toolInspect',
+									onClick: inspect,
+									children: [react_jsx_runtime.jsx(primitives.IconInspectOutlineRegular, {}), t('tool.inspect')],
+								}),
+							],
+						}) : undefined,
+					}),
+				],
+			});
+		}
+
 		/**
 		 * 注册会话头部插槽。
 		 *
@@ -544,6 +757,18 @@ window.__ModuleLoader__.load({
 		// NOTE: 注册协作专家头部插槽与 locale
 		function apply(ctx) {
 			ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'session-hub: dictionaries');
+			ctx.effect(() => {
+				if (typeof document === 'undefined') return;
+				const style = document.createElement('style');
+				style.dataset.plugin = 'dsh-session-hub';
+				style.dataset.pluginCss = 'dsh-session-hub/SessionToolView';
+				style.textContent = toolCss;
+				document.head.appendChild(style);
+				return () => style.remove();
+			}, 'session-hub: tool row styles');
+			ctx.slots.inject(TOOL_SLOT, () =>
+				ctx.slots.register({ name: TOOL_SLOT, key: 'session', locale: NS }, SessionToolView),
+			);
 			ctx.slots.inject(SLOT, () =>
 				ctx.slots.register(
 					{
