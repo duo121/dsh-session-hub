@@ -32,7 +32,7 @@ function reset({ keepPlaying = false } = {}) {
   taskTimers.clear();
   if (!keepPlaying) setPlaying(false);
   state = {
-    index: 0, active: null, title: '新会话', view: 'chat',
+    index: 0, active: null, title: '新会话', view: 'chat', summarizing: false,
     expertsOpen: false, pickerOpen: false, referenced: false, pinned: false, created: [], archived: new Set(), events: [], tasks: {},
   };
   ui['archived-sessions'].open = false;
@@ -43,7 +43,6 @@ function advance() {
   state.index++;
   state.referenced = false;
   state.pickerOpen = false;
-  state.view = 'chat';
   if (currentStep().kind === 'done') setPlaying(false);
 }
 
@@ -100,22 +99,30 @@ function renderExperts() {
   }).join('');
 }
 
-function toolTrace(args, result, expanded) {
-  return `<details class="tool-row" ${expanded ? 'open' : ''}>
-    <summary><span aria-hidden="true">☷</span> 工具调用 · <code>session · ${args.action}</code></summary>
-    <div class="tool-body"><pre aria-label="请求参数">${escapeText(JSON.stringify(args, null, 2))}</pre></div>
-  </details><p class="tool-output">${escapeText(result)}</p>`;
+function toolTrace({ args, label, output }, key, expanded) {
+  return `<details class="tool-row" data-tool-key="${key}" ${expanded ? 'open' : ''}>
+    <summary>工具调用 · <span class="tool-name">session · ${args.action}</span>${label ? ` · ${escapeText(label)}` : ''}</summary>
+    <div class="tool-body"><p class="tool-caption">输入</p><pre aria-label="请求参数">${escapeText(JSON.stringify(args, null, 2))}</pre>${output ? `<div class="tool-output"><p class="tool-caption">输出</p><p>${escapeText(output)}</p></div>` : ''}</div>
+  </details>`;
 }
 
-function renderEvent(event) {
+function renderEvent(event, index, opened) {
   const trace = state.view === 'trace';
   if (event.receipt) {
     const id = event.receipt;
     if (trace) return `<p class="trace-event">↩ ${escapeText(nameOf(id))} · 自动回执</p>`;
     return `<article class="message transcript-item receipt"><div class="bubble"><div class="source">↩ 自动回执 · ${reference(id)}</div><p>${byId[id].result}</p></div></article>`;
   }
-  const result = event.args ? toolTrace(event.args, event.result, trace) : `<p class="reply release-summary">${escapeText(event.result)}</p>`;
-  return `<article class="transcript-item">${trace ? '' : `<div class="message"><div class="bubble">${event.dispatch ? reference(event.dispatch) : ''} ${escapeText(event.prompt)}</div></div>`}${result}</article>`;
+  const tools = event.calls ?? (event.args ? [{ args: event.args }] : []);
+  const rows = tools.map((call, i) => {
+    const key = `${index}-${i}`;
+    return toolTrace(call, key, trace || opened.has(key));
+  }).join('');
+  const reply = event.result ? `<p class="reply${event.calls ? ' release-summary' : ''}">${escapeText(event.result)}</p>` : '';
+  const working = event.pending ? `<p class="working">${spinner()} 正在读取并汇总会话</p>` : '';
+  return `<article class="transcript-item${event.calls ? ' summary-turn' : ''}">
+    ${trace ? '' : `<div class="message"><div class="bubble">${event.dispatch ? reference(event.dispatch) : ''} ${escapeText(event.prompt)}</div></div>`}
+    ${rows || working ? `<div class="tool-group">${rows}${working}</div>` : ''}${reply}</article>`;
 }
 
 function renderTranscript() {
@@ -124,7 +131,8 @@ function renderTranscript() {
   if (!active) {
     content = '<div class="welcome"><img src="./harness-mark.svg" width="32" height="24" alt=""><div><strong>V1.8 发布</strong><p>创建第一个会话，或从右上角播放完整演示。</p></div></div>';
   } else if (active === 'lead') {
-    content = events.map(renderEvent).join('');
+    const opened = new Set([...ui.transcript.querySelectorAll('.thread[data-view="chat"] .tool-row[open]')].map((row) => row.dataset.toolKey));
+    content = events.map((event, index) => renderEvent(event, index, opened)).join('');
   } else if (tasks[active]) {
     const person = byId[active];
     const task = events.findLast(({ dispatch }) => dispatch === active);
@@ -141,12 +149,12 @@ function renderTranscript() {
             : `<p>${person.result}</p><p class="reference-note">已自动回执给${escapeText(state.title)}</p>`}</article>`;
     }
   }
-  ui.transcript.innerHTML = `<div class="thread">${content}</div>`;
+  ui.transcript.innerHTML = `<div class="thread" data-view="${view}">${content}</div>`;
 }
 
 function renderComposer() {
   const step = currentStep();
-  const canSend = state.active === 'lead' && step.kind === 'send';
+  const canSend = state.active === 'lead' && step.kind === 'send' && !state.summarizing;
   const person = canSend && step.dispatch ? byId[step.dispatch] : null;
   const needsReference = step.pick && !state.referenced;
   const done = step.kind === 'done' && state.active === 'lead';
@@ -154,6 +162,7 @@ function renderComposer() {
   let placeholder = '发消息或创建任务';
   if (done) placeholder = '发布检查已汇总，两个协作会话已归档。';
   if (waiting) placeholder = `正在等待${nameOf(step.waitFor)}的自动回执…`;
+  if (state.summarizing) placeholder = '正在汇总发布检查…';
   const picker = person && state.pickerOpen ? `<div class="picker" id="picker"><p>对话</p>
     <button type="button" class="picker-row selected" data-action="pick">${icon.chat}${person.name}</button></div>` : '';
   ui.composer.innerHTML = `${picker}<div class="composer">
@@ -173,7 +182,7 @@ function guide() {
     return { target: ui.sessions.querySelector('[data-session="lead"]'), label: step.label };
   }
   if (state.active !== 'lead') return { target: ui.sessions.querySelector('[data-session="lead"]'), label: '返回项目负责人' };
-  if (step.kind === 'view') return { target: ui.workspace.querySelector(`[data-view="${step.view}"]`), label: step.label };
+  if (state.summarizing) return null;
   if (state.pickerOpen) return { target: ui.composer.querySelector('[data-action="pick"]'), label: '引用负责人会话' };
   if (step.pick && !state.referenced) return { target: ui.composer.querySelector('[data-action="at"]'), label: '选择要引用的会话' };
   return { target: ui.composer.querySelector(`[data-action="${step.kind === 'done' ? 'reset' : 'send'}"]`), label: step.label };
@@ -276,10 +285,47 @@ function dispatchTask({ dispatch: id, prompt, superseded }) {
   taskTimers.add(timer);
 }
 
+function summarize({ prompt, calls, result }) {
+  const turn = { prompt, calls: [], pending: true };
+  state.summarizing = true;
+  state.events.push(turn);
+  render({ bottom: true });
+
+  function showNextResult() {
+    const transcript = ui.transcript;
+    const follow = state.active === 'lead' && transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight < 32;
+    const call = calls[turn.calls.length];
+    if (call) {
+      turn.calls.push(call);
+      render({ bottom: follow });
+      scheduleNextResult();
+    } else {
+      turn.result = result;
+      turn.pending = false;
+      state.summarizing = false;
+      advance();
+      render({ bottom: follow });
+      ui.announcement.textContent = result;
+    }
+  }
+
+  function scheduleNextResult() {
+    const timer = setTimeout(() => {
+      taskTimers.delete(timer);
+      showNextResult();
+    }, 480);
+    taskTimers.add(timer);
+  }
+
+  scheduleNextResult();
+}
+
 function send() {
   const step = currentStep();
-  if (step.kind !== 'send' || state.active !== 'lead' || (step.pick && !state.referenced)) return;
+  if (step.kind !== 'send' || state.active !== 'lead' || state.summarizing || (step.pick && !state.referenced)) return;
+  state.view = 'chat';
   const { dispatch, prompt, args, result, effect } = step;
+  if (step.calls) { summarize(step); return; }
   if (dispatch) dispatchTask(step);
   else {
     if (effect?.rename) state.title = effect.rename;
@@ -340,8 +386,6 @@ ui.workspace.addEventListener('click', (event) => {
   }
   if (button.dataset.session) { navigate(button.dataset.session); return; }
   if (button.dataset.view) {
-    const step = currentStep();
-    if (step.kind === 'view' && step.view === button.dataset.view && state.active === 'lead') advance();
     state.view = button.dataset.view;
     render({ bottom: true });
     return;
