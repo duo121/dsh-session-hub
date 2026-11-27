@@ -23,21 +23,24 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px s
 .icon { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-.page { width: min(1120px, calc(100% - 40px)); margin: 27px auto; }
-.page-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-.page-header > div { display: flex; gap: 10px; align-items: baseline; }
-.page-header h1 { font-size: 17px; font-weight: 650; }
-.page-header span, .page-header a, .page-footer { color: var(--muted); font-size: 13px; }
-.page-header a:hover { color: var(--blue); }
-.page-footer { margin-top: 13px; line-height: 1.6; }
-.workspace { display: grid; grid-template-columns: 186px minmax(0, 1fr); min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-.sidebar { display: flex; flex-direction: column; min-width: 0; padding: 0 8px 10px; background: var(--sidebar); border-right: 1px solid var(--line); border-radius: 11px 0 0 11px; }
-.sidebar-brand { display: flex; gap: 7px; align-items: center; margin: 0 5px; height: 45px; }
-.sidebar-brand strong { font-size: 19px; letter-spacing: -.04em; }
-.sidebar-brand span { color: #1b1b1c; background: #ebebee; padding: 2px 4px; border-radius: 2px; font-size: 8px; font-weight: 720; letter-spacing: .035em; }
-.sidebar-label { padding: 10px 6px 7px; color: var(--subtle); font-size: 12px; }
-.project { display: flex; gap: 6px; align-items: center; padding: 7px 6px; font-weight: 550; font-size: 13px; }
-.project span { color: var(--blue); font-size: 17px; }
+.page-footer { padding: 9px 16px; color: var(--muted); background: var(--surface); border-top: 1px solid var(--line); font-size: 12px; line-height: 1.6; }
+.workspace { --demo-height: max(550px, calc(100svh - 39px)); display: grid; grid-template-columns: 248px minmax(0, 1fr); min-width: 0; background: var(--surface); }
+.sidebar { display: flex; flex-direction: column; min-width: 0; padding: 6px 10px 10px; background: var(--sidebar); border-right: 1px solid var(--line); }
+.sidebar-brand { display: flex; gap: 5px; align-items: center; padding: 0 6px; height: 53px; }
+.sidebar-brand img { display: block; }
+.new-session { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; margin: 1px 2px 19px; border: 1px solid #53545a; border-radius: 8px; background: #3d3e43; font-size: 14px; }
+.new-session:hover { background: #4c4d53; }
+.sidebar-label { padding: 10px 9px 7px; color: var(--muted); font-size: 13px; }
+.project { display: flex; gap: 6px; align-items: center; padding: 7px 9px; font-weight: 500; font-size: 14px; }
+.project .icon { color: var(--blue); }
+.chapters { display: grid; gap: 2px; margin-top: 19px; }
+.chapters button { border-radius: 7px; padding: 7px 9px; text-align: left; font-size: 13px; color: var(--muted); }
+.chapters button:hover, .chapters [aria-current='step'] { background: #303032; color: #efeff1; }
+.chapters [aria-current='step'] { box-shadow: inset 2px 0 var(--blue); }
+.chapter-sessions { min-height: 32px; padding: 7px 9px 7px 25px; color: var(--muted); font-size: 13px; }
+.sidebar-foot { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-top: auto; color: var(--muted); font-size: 12px; }
+.sidebar-foot a { padding: 5px 7px; }
+.sidebar-foot a:hover { color: var(--blue); }
 .session-list { display: grid; gap: 2px; }
 .session { display: flex; align-items: center; justify-content: space-between; min-height: 32px; border-radius: 6px; text-align: left; padding: 4px 7px 4px 21px; font-size: 13px; white-space: nowrap; }
 .session[aria-current], .session:hover { background: #303032; }
@@ -47,8 +50,9 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px s
 .reset-button:disabled { opacity: .72; }
 .reset-button span { margin-right: 3px; }
 
-.conversation { min-width: 0; height: 530px; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; }
-.conversation-header { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 4px 17px 0; }
+.conversation, .scenario { min-width: 0; height: var(--demo-height); }
+.conversation { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; }
+.conversation-header { display: flex; align-items: center; gap: 12px; min-height: 41px; padding: 2px 24px 0; }
 .conversation-header h2 { font-size: 14px; font-weight: 620; white-space: nowrap; }
 .mode { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .view-tabs { display: flex; gap: 17px; padding: 0 17px; border-bottom: 1px solid var(--line); }
@@ -139,16 +143,42 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px s
 .picker-row.selected, .picker-row:hover { background: #353538; }
 .picker-row span { margin-left: auto; color: var(--muted); font-size: 11px; }
 
+.scenario { display: flex; flex-direction: column; padding: 19px max(24px, calc((100% - 680px) / 2)); }
+.scenario h2 { font-size: 17px; font-weight: 620; }
+.scenario .reference-note { font-size: 13px; line-height: 1.55; }
+.scenario-nav, .scenario-actions, .scenario-read-controls { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.scenario-nav { margin: 8px 0; }
+.scenario-nav button { padding: 5px 8px; color: var(--muted); background: transparent; }
+.scenario-transcript { flex: 1; min-height: 0; overflow: auto; margin: 12px 0 0; padding: 8px 4px; font-size: 14px; line-height: 1.55; scrollbar-width: thin; }
+.scenario-transcript[hidden] + .scenario-status { margin-top: auto; }
+.scenario-transcript .message { margin-top: 16px; }
+.scenario-reply { justify-items: start; }
+.scenario-reply .bubble { background: transparent; }
+.scenario-tool-body pre { margin: 4px 0 10px; padding: 8px 10px; border-radius: 6px; background: var(--sidebar); white-space: pre-wrap; overflow-wrap: anywhere; }
+.scenario-status { color: var(--muted); font-size: 13px; line-height: 1.55; padding-block: 9px; }
+.scenario-actions:not([hidden]) { padding: 8px; border-radius: 18px; background: var(--panel); }
+.scenario-action, .scenario-read-controls select { border-radius: 9px; padding: 8px 10px; background: #353537; font-size: 13px; }
+.scenario-action:hover { background: #454549; color: #efeff1; }
+.scenario-read-controls label { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.scenario-read-controls select { border: 1px solid var(--line); color: inherit; }
+.scenario-picker .scenario-actions { display: grid; margin: 14px 0; }
+.scenario-picker .scenario-action { text-align: left; }
+.scenario-picker .scenario-action span { display: block; color: var(--muted); margin-top: 3px; }
+
 @media (max-width: 700px) {
-  .page { width: calc(100% - 20px); margin-block: 13px; }
   .workspace { grid-template-columns: minmax(0, 1fr); }
-  .sidebar { position: relative; padding-bottom: 35px; border-right: none; border-bottom: 1px solid var(--line); border-radius: 11px 11px 0 0; }
-  .sidebar-brand { height: 35px; }
-  .sidebar-label, .project { display: none; }
-  .session-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .sidebar { position: relative; padding: 5px 8px 35px; border-right: none; border-bottom: 1px solid var(--line); }
+  .sidebar-brand { height: 38px; padding-inline: 4px; }
+  .sidebar-brand img { max-width: 132px; height: auto; }
+  .sidebar-label, .project, .new-session, .sidebar-foot a { display: none; }
+  .chapters { order: 1; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0 0 5px; }
+  .chapters button { padding: 7px 2px; text-align: center; white-space: nowrap; font-size: 12px; }
+  .session-list { order: 2; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .session { justify-content: center; gap: 5px; padding: 3px; }
-  .reset-button { position: absolute; top: 2px; right: 7px; }
-  .conversation { height: 461px; }
+  .chapter-sessions { order: 2; }
+  .reset-button { position: absolute; top: 9px; right: 7px; }
+  .conversation, .scenario { height: max(455px, calc(100svh - 192px)); }
+  .scenario { padding: 14px 12px; }
   .conversation-header { position: relative; gap: 7px; padding-inline: 10px; }
   .view-tabs, .transcript { padding-inline: 10px; }
   .collaboration { position: static; }

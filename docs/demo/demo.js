@@ -1,3 +1,5 @@
+import { mountScenarios } from './scenarios.js';
+
 const lead = { id: 'lead', name: '项目负责人' };
 const engineers = [
   {
@@ -15,7 +17,7 @@ const people = [lead, ...engineers];
 const byId = Object.fromEntries(people.map((person) => [person.id, person]));
 const ui = Object.fromEntries([
   'workspace', 'sessions', 'conversation-title', 'collaboration', 'experts', 'expert-panel',
-  'transcript', 'composer', 'reset', 'announcement', 'demo-guide',
+  'transcript', 'composer', 'reset', 'announcement', 'demo-guide', 'scenario', 'chapter-sessions',
 ].map((id) => [id, document.getElementById(id)]));
 const timers = new Map();
 let state;
@@ -141,7 +143,7 @@ let guideTarget;
 
 function positionGuide() {
   const guide = ui['demo-guide'];
-  if (!guideTarget?.isConnected) {
+  if (!ui.scenario.hidden || !guideTarget?.isConnected) {
     guide.hidden = true;
     return;
   }
@@ -226,6 +228,51 @@ function renderComposer(step) {
   </div></div>`;
 }
 
+let releaseRecord;
+let frontendArchived = false;
+const conversation = ui.transcript.closest('.conversation');
+
+function renderChapterSessions() {
+  const active = !ui.scenario.hidden;
+  ui.sessions.querySelector('[data-session="frontend"]')?.toggleAttribute('hidden', active && frontendArchived);
+  const list = ui['chapter-sessions'];
+  list.hidden = !active || !releaseRecord;
+  list.textContent = releaseRecord ? `${releaseRecord.pinned ? '◆  ' : ''}${releaseRecord.title}` : '';
+  if (releaseRecord?.pinned) ui.sessions.before(list);
+  else ui.sessions.after(list);
+}
+
+function setChapter(id) {
+  const collaboration = id === 'collaboration';
+  ui.scenario.hidden = collaboration;
+  conversation.hidden = !collaboration;
+  for (const button of ui.workspace.querySelectorAll('.chapters [data-chapter]')) {
+    if (button.dataset.chapter === id) button.setAttribute('aria-current', 'step');
+    else button.removeAttribute('aria-current');
+  }
+  renderChapterSessions();
+  positionGuide();
+}
+
+const scenarios = mountScenarios(ui.scenario, {
+  onCollaboration() {
+    setChapter('collaboration');
+    ui.transcript.focus({ preventScroll: true });
+  },
+  onChapter(id, title) {
+    releaseRecord = title ? { title, pinned: true } : null;
+    frontendArchived = false;
+    setChapter(id);
+  },
+  onOperation({ action, title, content }) {
+    if (action === 'create') releaseRecord = { title, pinned: false };
+    if (action === 'rename') releaseRecord.title = content;
+    if (action === 'pin' || action === 'unpin') releaseRecord.pinned = action === 'pin';
+    if (action === 'archive' || action === 'unarchive') frontendArchived = action === 'archive';
+    renderChapterSessions();
+  },
+});
+
 function render({ bottom = false } = {}) {
   const focus = document.activeElement?.dataset.focus;
   const step = nextStep();
@@ -235,6 +282,7 @@ function render({ bottom = false } = {}) {
       <span>${name}</span>${running ? `<span class="session-status">${spinner(true)}<span class="sr-only">运行中</span></span>` : ''}
     </button>`;
   }).join('');
+  renderChapterSessions();
   ui['conversation-title'].textContent = byId[state.active].name;
   for (const button of ui.workspace.querySelectorAll('[data-view]')) {
     button.setAttribute('aria-pressed', String(button.dataset.view === state.view));
@@ -298,7 +346,20 @@ document.addEventListener('click', (event) => {
     renderGuide(step);
   }
   if (!button || !path.includes(ui.workspace)) return;
-  if (button.dataset.session) navigate(button.dataset.session);
+  if (button.dataset.chapter) {
+    if (button.dataset.chapter === 'collaboration') {
+      setChapter('collaboration');
+      ui.transcript.focus({ preventScroll: true });
+    } else {
+      scenarios.showChapter(button.dataset.chapter);
+    }
+    return;
+  }
+  if (button === ui.reset && !ui.scenario.hidden) setChapter('collaboration');
+  if (button.dataset.session) {
+    setChapter('collaboration');
+    navigate(button.dataset.session);
+  }
   if (button.dataset.view) {
     state.view = button.dataset.view;
     render({ bottom: true });

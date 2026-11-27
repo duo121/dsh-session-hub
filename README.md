@@ -6,7 +6,18 @@
 
 **[打开交互演示 ↗](https://duo121.github.io/dsh-session-hub/)** · 浏览器里的模拟工作区，无需安装 DSH。
 
-## 一次发布，三个会话
+## V1.8 发布演示
+
+演示默认打开「协作派发」。侧栏的四个章节对应同一次发布的四个阶段，每一章都可以直接体验。工具调用可展开查看。
+
+| 章节 | 可以体验的操作 |
+| --- | --- |
+| 准备会话 | 新建发布记录会话，添加版本号并置顶。会话标题和顺序会在侧栏更新。 |
+| 协作派发 | 向前后端工程师分别派发任务，从自动展开的协作专家列表进入目标会话，再回到负责人处收取回执。 |
+| 汇总进展 | 列出工作区会话，读取两位工程师的逐轮摘要或完整对话，汇总发布检查结果。 |
+| 发布收尾 | 归档和恢复已完成的会话，取消置顶发布记录，并体验中断测试后不产生回执的分支。 |
+
+### 一次发布，三个协作会话
 
 **1. 分别发送任务。** 项目负责人 `@前端工程师` 检查发布页的状态提示，再 `@后端工程师` 核对接口响应。`@` 把会话引用插入输入框，供智能体读取上下文。智能体调用 `session` 的 `action=send` 后，任务才会进入目标会话。
 
@@ -24,6 +35,32 @@
 消息首行标明「来自 项目负责人」。点击引用可以跳回来源会话。
 
 ![前端工程师收到任务，消息首行为来自项目负责人](docs/screenshots/release-receiver.webp)
+
+</details>
+
+<details>
+<summary>查看发布准备、进展汇总和收尾截图</summary>
+
+**准备会话。** 新建、改名并置顶发布记录，侧栏同步显示新标题和顺序。
+
+![置顶后的 V1.8 发布记录与 session pin 工具轨迹](docs/screenshots/release-prepare.webp)
+
+**汇总进展。** 使用 `session · read` 读取两位工程师的对话，再汇总前端页面检查与后端接口联调结果。
+
+![逐轮回查后生成发布检查摘要](docs/screenshots/release-summary.webp)
+
+**发布收尾。** 归档后可以恢复会话。被中断的测试轮次没有正常完成，因此不产生自动回执。
+
+![发布收尾场景展示 session interrupt 和回执状态](docs/screenshots/release-close.webp)
+
+</details>
+
+<details>
+<summary>查看原版 DeepSeek Harness 界面参考</summary>
+
+演示的品牌区、会话布局、协作专家列表和引用选择器分别参考了原版截图。[工作区与输入框](docs/screenshots/harness-reference.webp) · [会话与工具调用](docs/screenshots/tool-call.webp) · [协作专家列表](docs/screenshots/menu-open.webp) · [会话引用选择器](docs/screenshots/at-picker.webp)
+
+![隔离实例中的 DeepSeek Harness 工作区](docs/screenshots/harness-reference.webp)
 
 </details>
 
